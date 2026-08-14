@@ -1,0 +1,72 @@
+v1.0 - Versión original (endless sin niveles)
+v1.1 - Sistema de niveles + monedas + tienda + PWA
+v1.2 - Sistema de logros (estilo Steam)
+      - Nuevos modos: Clásico, Casual, Hearts, Desafiante, Legend
+      - UI rediseñada (menú y HUD)
+      - Fondo gradiente gris animado
+      - Moneda como imagen (coin.png)
+      - Logros con recompensas reclamables
+      - Toast de logros al desbloquear
+v1.3 - Persistencia de nivel solo en modo Clásico
+      - Acceso a logros desde pausa (solo lectura, sin reclamar)
+      - Colisiones entre cubos con inercia (ya no se traspasan)
+v1.3.1 - Persistencia del precio de la tienda
+v1.3.2 - Fix: pausa se mantiene al abrir Tienda/Logros
+      - Fix: logros de nivel se desbloquean al superar niveles
+v1.4 - Persistencia de nivel + % barra en todos los modos (excepto Casual)
+      - Logros desbloqueables en Hearts y Desafiante
+      - Nuevos logros por jugar cada modo por primera vez
+      - Classic: slow-mo 30% chance (-1% por cubo en pantalla)
+      - Desafiante: resistentes 10%, slow-mo 15% (duración x0.5)
+      - Cubos resistentes: esfera azul transparente con aristas
+v1.4.1 - Cubos resistentes: aspecto normal + esfera más grande
+       - Desafiante: slow-mo 5% (-1%/cubo), strong 10% (-2%/cubo)
+       - Cola de notificaciones de logros (uno a la vez)
+       - Hitbox dual en strong cubes (barrera + cubo)
+       - Tienda: Touch Power (daño del slash, x1→x3, +0.2, precio x2)
+v1.5 - Tienda rediseñada (sci-fi / armory)
+      - Nuevo upgrade: Mining (+0.25 monedas/cubo, precio x1.5, ilimitado)
+      - Partículas al romper/golpear barreras de strong cubes
+v1.5.1 - Panel HUD con buffs/debuffs de modo y tienda
+       - Logros y notificaciones rediseñados (sci-fi)
+       - Logros de modo sin recompensa
+       - Solo 1 slow-mo en pantalla a la vez
+       - Partículas con fade y más duración
+v1.6 - Efectos de sonido (por Cristian)
+      - achievement, click, cash, levelup, reward, break, music
+      - Música de fondo se pausa en menú de pausa / menús
+v1.6.1 - Pantalla de carga (logo, créditos, preload real)
+       - Toque para iniciar (desbloquea audio)
+       - Música con fade-in gradual
+v1.6.2 - Música también en menú principal (fade-in)
+       - Transición más suave carga → toque para iniciar
+       - Animación al aparecer el menú principal
+       - Fix: ya no aparece la pantalla de nivel al terminar el splash
+v1.6.3 - Fix toasts de logros (z-index + cola robusta)
+       - Barras de progreso por logro en menú Logros
+       - Sin animación de entrada del menú principal
+v1.7 - PWA: id, categories, lang, screenshots en manifest
+     - Service Worker con cache strategies (network-first / cache-first)
+v1.7.1 - SW offline completo: cachea TODO en la 1ª visita (incl. sonidos/música)
+v1.8 - Primera vez: aviso de datos + descarga con progreso y cierre
+     - Calidad gráfica adaptativa (low/medium/high) para móviles gama baja
+v1.9 - Menú Gráficos fullscreen: resolución, sombras, detalle, partículas
+v1.9.1 - Fondo gradiente restaurado · HUD sin truncar
+       - Iconos y coin nuevos · manifest con version 1.9.1
+       - Preload con verificación de caché/estructura
+       - Botón Volver sin flecha · gráficos persistentes
+v1.9.2 - Fondo gradiente gris restaurado (pintado en canvas, compatible APK)
+v1.9.3 - Manifest/theme colors alineados (#2a2a30) para PWABuilder/APK
+v1.9.4 - Manifest esencial (compatible TWA / PWABuilder)
+v1.10 - SW audio offline (Range) + hydrate blob
+      - Slow-mo: no spawn bajo efecto, no game over al perderlo, chance 5%-0.25%/cubo
+      - Clásico: spawn acelera suave por nivel (~nota en +20)
+      - Terminal secreta + menú IA-Crash (básico, persistente)
+v1.10.1 - Terminal: tocar «Oscar» 5 veces (pointer-events en créditos)
+v1.10.3 - IA: espera a que el cubo sea visible + burst visual al romper
+v1.10.4 - HUD más espacioso · IA strong/intensidad/sonidos/colisiones
+        - Menú IA renovado · Oscar sin resaltado azul
+v1.10.5 - SFX break fiable · badge IA abajo-izq · multi-swipe real · lives bajo panel
+v1.11 - FIX persistencia gráficos (clamp antes de definir rompía el load)
+      - Offline: verificación crítica de caché + hydrate audio tras descarga
+v1.11.1 - Slow-mo solo afecta cubos; IA mantiene tiempo real de reacción/swipes

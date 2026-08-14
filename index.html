@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#2a2a30">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="description" content="Cube Crash - Aplasta cubos 3D">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="192.png">
+  <link rel="apple-touch-icon" href="192.png">
+  <title>Cube Crash</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- FIRST RUN DATA DOWNLOAD (APK / PWA) -->
+  <div id="firstRun" class="first-run" style="display:none">
+    <div class="first-run__card" id="firstRunIntro">
+      <div class="first-run__badge">PRIMERA VEZ</div>
+      <h1 class="first-run__title">Descarga de datos</h1>
+      <p class="first-run__text">
+        Al continuar se usarán <strong>datos móviles o Wi‑Fi</strong> para descargar
+        los archivos del juego (imágenes y sonidos). Este proceso <strong>solo ocurre una vez</strong>;
+        después podrás jugar completamente sin conexión.
+      </p>
+      <p class="first-run__text first-run__text--small">
+        Tamaño aproximado: ~2,8 MB
+      </p>
+      <div class="first-run__legal">
+        <div>© Cube Crash</div>
+        <div>Código y Desarrollo: Oscar Antonio Alvarez Collado</div>
+        <div>Sonido: Cristian Cuello</div>
+        <div>Todos los derechos reservados.</div>
+      </div>
+      <button type="button" class="first-run__btn" id="firstRunDownloadBtn">Descargar</button>
+    </div>
+    <div class="first-run__card" id="firstRunProgress" style="display:none">
+      <h1 class="first-run__title">Descargando…</h1>
+      <div class="first-run__bar"><div class="first-run__bar-fill" id="firstRunBarFill"></div></div>
+      <div class="first-run__pct" id="firstRunPct">0%</div>
+      <div class="first-run__log" id="firstRunLog"></div>
+    </div>
+    <div class="first-run__card" id="firstRunDone" style="display:none">
+      <h1 class="first-run__title">Datos descargados</h1>
+      <p class="first-run__text">
+        Se cerrará la aplicación. Puedes volver a abrirla después de esto.
+      </p>
+      <button type="button" class="first-run__btn" id="firstRunAcceptBtn">Aceptar</button>
+    </div>
+  </div>
+
+  <!-- LOADING / SPLASH -->
+  <div id="splash" class="splash">
+    <div class="splash__stage splash__stage--logo" id="splashLogo">
+      <img src="512.png" alt="Cube Crash" class="splash__logo">
+      <div class="splash__title">CUBE CRASH</div>
+      <div class="splash__version">v1.11.1</div>
+    </div>
+    <div class="splash__stage splash__stage--credits" id="splashCredits">
+      <div class="splash__credit-block">
+        <div class="splash__credit-role">Código y Desarrollo</div>
+        <div class="splash__credit-name" id="splashAuthorName"><span class="splash-oscar-tap" id="splashOscarTap">Oscar</span> Antonio Alvarez Collado</div>
+      </div>
+      <div class="splash__credit-block">
+        <div class="splash__credit-role">Sonido</div>
+        <div class="splash__credit-name">Cristian Cuello</div>
+      </div>
+    </div>
+    <div class="splash__stage splash__stage--load" id="splashLoad">
+      <div class="splash__load-title">CUBE CRASH</div>
+      <div class="splash__bar">
+        <div class="splash__bar-fill" id="splashBarFill"></div>
+      </div>
+      <div class="splash__load-pct" id="splashPct">0%</div>
+    </div>
+    <div class="splash__stage splash__stage--tap" id="splashTap">
+      <div class="splash__tap-text">Toque para iniciar</div>
+    </div>
+  </div>
+
+  <canvas id="c"></canvas>
+
+  <!-- HUD -->
+  <div class="hud">
+    <div id="aiActiveBadge" class="ai-badge" style="display:none">
+      <img src="data/images/ai-crash.png" alt="IA">
+      <span>IA-Crash</span>
+    </div>
+
+    <div class="level-bar">
+      <div class="level-bar__fill"></div>
+      <div class="level-bar__text">Nivel 1 · 0%</div>
+    </div>
+
+    <div class="hud__top">
+      <div class="hud__left">
+        <div class="hud-panel">
+          <div class="score-lbl"></div>
+          <div class="cube-count-lbl"></div>
+          <div class="hud-panel__divider"></div>
+          <div class="hud-buffs">
+            <div class="hud-buff hud-buff--mode"></div>
+            <div class="hud-buff hud-buff--shop"></div>
+            <div class="hud-buff hud-buff--debuff"></div>
+          </div>
+        </div>
+        <div class="lives-lbl" style="display:none">❤️❤️❤️</div>
+      </div>
+      <div class="hud__right">
+        <div class="coins-lbl"><img src="data/images/coin.png" class="coin-icon" alt=""> <span class="coins-val">0</span></div>
+        <div class="pause-btn"><div></div></div>
+      </div>
+    </div>
+
+    <div class="slowmo">
+      <div class="slowmo__bar"></div>
+    </div>
+  </div>
+
+  <!-- Achievement Toast -->
+  <div class="ach-toast" id="achToast">
+    <div class="ach-toast__bar"></div>
+    <div class="ach-toast__icon">🏆</div>
+    <div class="ach-toast__body">
+      <div class="ach-toast__title">LOGRO DESBLOQUEADO</div>
+      <div class="ach-toast__name"></div>
+      <div class="ach-toast__desc"></div>
+    </div>
+  </div>
+
+  <!-- Menus -->
+  <div class="menus">
+    <!-- MAIN -->
+    <div class="menu menu--main">
+      <div class="main-logo">
+        <h1>Cube Crash</h1>
+        <p class="tagline">Aplasta. Rompe. Domina.</p>
+      </div>
+
+      <div class="main-coins">
+        <img src="data/images/coin.png" class="coin-icon" alt=""> <span class="main-coins-val">0</span>
+      </div>
+
+      <div class="main-btns">
+        <button type="button" class="btn btn-primary play-modes-btn">Jugar</button>
+        <button type="button" class="btn shop-btn">Tienda</button>
+        <button type="button" class="btn achievements-btn">Logros</button>
+        <button type="button" class="btn graphics-btn">Gráficos</button>
+        <button type="button" class="btn terminal-btn" style="display:none">Terminal</button>
+        <button type="button" class="btn ia-btn" style="display:none">IA</button>
+      </div>
+
+      <div class="credits">Oscar Antonio Alvarez Collado</div>
+    </div>
+
+    <!-- MODE SELECT -->
+    <div class="menu menu--modes">
+      <h2 class="menu-title">Elige un modo</h2>
+      <div class="mode-grid">
+        <button type="button" class="mode-card" data-mode="ranked">
+          <div class="mode-card__name">Clásico</div>
+          <div class="mode-card__desc">Endless con niveles, monedas y logros</div>
+        </button>
+        <button type="button" class="mode-card" data-mode="casual">
+          <div class="mode-card__name">Casual</div>
+          <div class="mode-card__desc">Sin morir · Solo contador de cubos</div>
+        </button>
+        <button type="button" class="mode-card" data-mode="hearts">
+          <div class="mode-card__name">Hearts</div>
+          <div class="mode-card__desc">3 vidas · Niveles y puntuación</div>
+        </button>
+        <button type="button" class="mode-card" data-mode="desafiante">
+          <div class="mode-card__name">Desafiante</div>
+          <div class="mode-card__desc">Más cubos · x2 monedas · Más difíciles</div>
+        </button>
+        <button type="button" class="mode-card mode-card--locked" data-mode="legend">
+          <div class="mode-card__name">Legend</div>
+          <div class="mode-card__desc">En desarrollo. ¡Gracias por jugar!</div>
+        </button>
+      </div>
+      <button type="button" class="btn btn-back modes-back-btn">← Volver</button>
+    </div>
+
+    <!-- PAUSE -->
+    <div class="menu menu--pause">
+      <h2 class="menu-title">Pausa</h2>
+      <div class="main-btns">
+        <button type="button" class="btn btn-primary resume-btn">Reanudar</button>
+        <button type="button" class="btn shop-btn--pause">Tienda</button>
+        <button type="button" class="btn achievements-btn--pause">Logros</button>
+        <button type="button" class="btn menu-btn--pause">Salir al Menú</button>
+      </div>
+    </div>
+
+    <!-- SCORE / GAME OVER -->
+    <div class="menu menu--score">
+      <h2 class="menu-title">Fin de partida</h2>
+      <div class="final-score-lbl">0</div>
+      <div class="high-score-lbl"></div>
+      <div class="level-reached-lbl"></div>
+      <div class="main-btns">
+        <button type="button" class="btn btn-primary play-again-btn">Reintentar</button>
+        <button type="button" class="btn menu-btn--score">Salir al Menú</button>
+      </div>
+    </div>
+
+    <!-- SHOP -->
+    <div class="menu menu--shop">
+      <div class="shop-panel">
+        <div class="shop-panel__header">
+          <div class="shop-panel__title">
+            <span class="shop-panel__badge">SYS</span>
+            <h2>ARMORY</h2>
+          </div>
+          <div class="shop-coins">
+            <img src="data/images/coin.png" class="coin-icon" alt="">
+            <span class="shop-coins-value">0</span>
+          </div>
+        </div>
+        <div class="shop-panel__grid">
+          <div class="shop-card" data-item="slowmo">
+            <div class="shop-card__icon">❄️</div>
+            <div class="shop-card__body">
+              <div class="shop-card__name">Slow-Mo Core</div>
+              <div class="shop-card__desc">+1s duración · <span class="slowmo-duration-val">1.5</span>s / 60s</div>
+            </div>
+            <button type="button" class="shop-card__buy shop-buy-btn" data-item="slowmo">10</button>
+          </div>
+          <div class="shop-card" data-item="touch">
+            <div class="shop-card__icon">⚔️</div>
+            <div class="shop-card__body">
+              <div class="shop-card__name">Touch Power</div>
+              <div class="shop-card__desc">Daño slash · x<span class="touch-power-val">1.0</span> / 3.0</div>
+            </div>
+            <button type="button" class="shop-card__buy shop-buy-btn" data-item="touch">100</button>
+          </div>
+          <div class="shop-card" data-item="mining">
+            <div class="shop-card__icon">⛏️</div>
+            <div class="shop-card__body">
+              <div class="shop-card__name">Mining</div>
+              <div class="shop-card__desc">Monedas/cubo · x<span class="mining-val">1.00</span></div>
+            </div>
+            <button type="button" class="shop-card__buy shop-buy-btn" data-item="mining">50</button>
+          </div>
+        </div>
+        <button type="button" class="btn shop-close-btn">Cerrar terminal</button>
+      </div>
+    </div>
+
+    <!-- ACHIEVEMENTS -->
+    <div class="menu menu--achievements">
+      <div class="ach-panel">
+        <div class="ach-panel__header">
+          <div class="ach-panel__title">
+            <span class="ach-panel__badge">REC</span>
+            <h2>LOGROS</h2>
+          </div>
+        </div>
+        <div class="ach-list" id="achList"></div>
+        <button type="button" class="btn ach-back-btn">Cerrar registro</button>
+      </div>
+    </div>
+
+    <!-- GRAPHICS (fullscreen) -->
+    <div class="menu menu--graphics">
+      <div class="gfx-screen">
+        <div class="gfx-screen__top">
+          <button type="button" class="gfx-back-btn">Volver</button>
+          <div class="gfx-screen__heading">
+            <span class="gfx-screen__badge">SYS</span>
+            <h2>GRÁFICOS</h2>
+          </div>
+        </div>
+        <div class="gfx-screen__body">
+          <section class="gfx-section">
+            <div class="gfx-section__title">Resolución</div>
+            <div class="gfx-section__hint">Escala de renderizado interno</div>
+            <div class="gfx-res-grid" id="gfxResGrid">
+              <button type="button" class="gfx-res-btn" data-scale="0.25">0.25×<span>180p / 270p</span></button>
+              <button type="button" class="gfx-res-btn" data-scale="0.5">0.5×<span>360p / 540p</span></button>
+              <button type="button" class="gfx-res-btn" data-scale="0.75">0.75×<span>540p / 810p</span></button>
+              <button type="button" class="gfx-res-btn" data-scale="1">1×<span>720p / 1080p</span></button>
+              <button type="button" class="gfx-res-btn" data-scale="1.25">1.25×<span>900p / 1350p</span></button>
+              <button type="button" class="gfx-res-btn" data-scale="1.5">1.5×<span>1080p / 1620p</span></button>
+              <button type="button" class="gfx-res-btn" data-scale="2">2×<span>1440p / 2160p</span></button>
+              <button type="button" class="gfx-res-btn" data-scale="3">3×<span>2160p / 3240p</span></button>
+              <button type="button" class="gfx-res-btn" data-scale="4">4×<span>2880p / 4320p</span></button>
+            </div>
+          </section>
+
+          <section class="gfx-section">
+            <div class="gfx-section__title">Sombras</div>
+            <div class="gfx-section__hint">Proyección de sombras de cubos</div>
+            <div class="gfx-row">
+              <span class="gfx-row__label" id="gfxShadowLabel">Activadas</span>
+              <button type="button" class="gfx-switch" id="gfxShadowSwitch" aria-pressed="true">
+                <span class="gfx-switch__track"><span class="gfx-switch__knob"></span></span>
+              </button>
+            </div>
+          </section>
+
+          <section class="gfx-section">
+            <div class="gfx-section__title">Grado de detalle</div>
+            <div class="gfx-section__hint">Barreras, colisiones y efectos visuales</div>
+            <div class="gfx-detail-list">
+              <button type="button" class="gfx-detail-btn" data-detail="simple">
+                <div class="gfx-detail-btn__name">Simple</div>
+                <div class="gfx-detail-btn__desc">Barrera básica · colisiones cada 2 frames · máximo rendimiento</div>
+              </button>
+              <button type="button" class="gfx-detail-btn" data-detail="medium">
+                <div class="gfx-detail-btn__name">Intermedio</div>
+                <div class="gfx-detail-btn__desc">Barrera limpia · colisiones cada frame · equilibrio visual/rendimiento</div>
+              </button>
+              <button type="button" class="gfx-detail-btn" data-detail="advanced">
+                <div class="gfx-detail-btn__name">Avanzado</div>
+                <div class="gfx-detail-btn__desc">Barrera con aristas · colisiones precisas · máximo detalle</div>
+              </button>
+            </div>
+          </section>
+
+          <section class="gfx-section">
+            <div class="gfx-section__title">Partículas</div>
+            <div class="gfx-section__hint">Cantidad de chispas y efectos al romper</div>
+            <div class="gfx-slider-wrap">
+              <input type="range" class="gfx-slider" id="gfxParticleSlider" min="0" max="100" step="5" value="100">
+              <div class="gfx-slider-meta">
+                <span id="gfxParticlePct">100%</span>
+                <span id="gfxParticleMsg">Máximo detalle de partículas</span>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECRET TERMINAL -->
+    <div class="menu menu--terminal">
+      <div class="term-screen">
+        <div class="term-screen__top">
+          <button type="button" class="gfx-back-btn terminal-back-btn">Volver</button>
+          <div class="gfx-screen__heading">
+            <span class="gfx-screen__badge">ROOT</span>
+            <h2>TERMINAL</h2>
+          </div>
+        </div>
+        <div class="term-body">
+          <div class="term-prompt">cube-crash:~$ auth --secure</div>
+          <p class="term-hint">Introduce la clave de acceso</p>
+          <input type="text" id="terminalInput" class="term-input" placeholder="Clave de acceso" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text">
+          <div id="terminalError" class="term-error"></div>
+          <button type="button" class="first-run__btn" id="terminalSubmit">Entrar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- IA MENU -->
+    <div class="menu menu--ia">
+      <div class="gfx-screen">
+        <div class="gfx-screen__top">
+          <button type="button" class="gfx-back-btn ia-back-btn">Volver</button>
+          <div class="gfx-screen__heading">
+            <span class="gfx-screen__badge">AUTO</span>
+            <h2>IA-CRASH</h2>
+          </div>
+        </div>
+        <div class="gfx-screen__body">
+          <section class="gfx-section">
+            <div class="gfx-section__title">Activar IA-Crash</div>
+            <div class="gfx-section__hint">
+              Un núcleo autónomo que analiza trayectorias y ejecuta cortes precisos por ti.
+              Ideal para practicar patrones o dejar que el sistema demuestre el ritmo del modo.
+              No opera en Casual. Si tocas la pantalla, la IA cede el control hasta que sueltes.
+            </div>
+            <div class="gfx-row">
+              <span class="gfx-row__label" id="iaEnableLabel">IA-Crash desactivada</span>
+              <button type="button" class="gfx-switch" id="iaEnableSwitch" aria-pressed="false">
+                <span class="gfx-switch__track"><span class="gfx-switch__knob"></span></span>
+              </button>
+            </div>
+          </section>
+
+          <section class="gfx-section">
+            <div class="gfx-section__title">Modo de IA</div>
+            <div class="ia-mode-list">
+              <button type="button" class="ia-mode-btn is-active" data-mode="basic">
+                <div class="gfx-detail-btn__name">Básico</div>
+                <div class="gfx-detail-btn__desc">Rompe los cubos que aparecen con swipes naranja visibles. Estable y predecible.</div>
+              </button>
+              <button type="button" class="ia-mode-btn is-locked" data-mode="intermediate" disabled>
+                <div class="gfx-detail-btn__name">Intermedia</div>
+                <div class="gfx-detail-btn__desc">En desarrollo</div>
+              </button>
+              <button type="button" class="ia-mode-btn is-locked" data-mode="advanced" disabled>
+                <div class="gfx-detail-btn__name">Avanzada</div>
+                <div class="gfx-detail-btn__desc">En desarrollo</div>
+              </button>
+            </div>
+          </section>
+
+          <section class="gfx-section">
+            <div class="gfx-section__title">Intensidad · Modo Básico</div>
+            <div class="gfx-section__hint">Cuántos swipes simultáneos puede ejecutar</div>
+            <input type="range" class="gfx-slider" id="iaIntensity" min="1" max="3" step="1" value="1">
+            <div class="gfx-slider-meta"><span id="iaIntensityVal">Nivel 1 · 1 swipe</span></div>
+          </section>
+
+          <section class="gfx-section">
+            <details class="ia-react-fold">
+              <summary>Tiempo de reacción</summary>
+              <div class="ia-react-body">
+                <div class="gfx-section__hint">Evita que la IA golpee antes de que el cubo sea visible</div>
+                <div class="ia-react-presets">
+                  <button type="button" class="ia-react-preset" data-preset="fast">Rápido (180ms)</button>
+                  <button type="button" class="ia-react-preset is-active" data-preset="normal">Normal (380ms)</button>
+                  <button type="button" class="ia-react-preset" data-preset="human">Humano (550ms)</button>
+                  <button type="button" class="ia-react-preset" data-preset="slow">Lento (800ms)</button>
+                </div>
+                <div class="gfx-section__hint" style="margin-top:10px">Personalizado</div>
+                <input type="range" class="gfx-slider" id="iaReactCustom" min="80" max="2000" step="20" value="380">
+                <div class="gfx-slider-meta"><span id="iaReactCustomVal">380 ms</span></div>
+              </div>
+            </details>
+          </section>
+        </div>
+      </div>
+    </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="main.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').then((reg) => {
+          // Fuerza comprobar actualizaciones del SW
+          try { reg.update(); } catch (e) {}
+        }).catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
