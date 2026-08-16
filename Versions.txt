@@ -70,3 +70,5 @@ v1.10.5 - SFX break fiable · badge IA abajo-izq · multi-swipe real · lives ba
 v1.11 - FIX persistencia gráficos (clamp antes de definir rompía el load)
       - Offline: verificación crítica de caché + hydrate audio tras descarga
 v1.11.1 - Slow-mo solo afecta cubos; IA mantiene tiempo real de reacción/swipes
+v1.12 - Hitbox completa · strong 2 fases · Leyenda + Score shop · 6K/8K · fondo sólido
+      - Red-cube · IA temporal niv.10 · permanente+Custom niv.100 · logros secretos

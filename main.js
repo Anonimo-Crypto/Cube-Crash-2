@@ -15,15 +15,24 @@ const allColors = [BLUE, GREEN, PINK, ORANGE, BLACK, WHITE, RED, PURPLE, GRAY, Y
 
 // Gameplay
 const getSpawnDelay = () => {
+	if (isLegendGame()) {
+		const max = 520;
+		const min = 160;
+		const delay = max - state.game.cubeCount * 2.8 - (state.game.level || 1) * 1.5;
+		return Math.max(delay, min);
+	}
+	if (isCustomGame()) {
+		const base = 1400 / Math.max(0.35, customSettings.spawnRate || 1);
+		return Math.max(200, base - state.game.cubeCount * 3);
+	}
 	if (isDesafianteGame()) {
 		const max = 700;
 		const min = 280;
 		const delay = max - state.game.cubeCount * 2.2;
 		return Math.max(delay, min);
 	}
-	// Clásico / Hearts: acelera muy poco por nivel; se nota más a partir de ~20+
 	const level = state.game.level || 1;
-	const levelPush = Math.max(0, (level - 1) * 3.2); // ~64ms en lvl 21, ~160ms en lvl 50
+	const levelPush = Math.max(0, (level - 1) * 3.2);
 	const spawnDelayMax = 1400;
 	const spawnDelayMin = 480;
 	const spawnDelay = spawnDelayMax - state.game.cubeCount * 3.1 - levelPush;
@@ -110,6 +119,7 @@ const GAME_MODE_CASUAL = Symbol('GAME_MODE_CASUAL');
 const GAME_MODE_HEARTS = Symbol('GAME_MODE_HEARTS');
 const GAME_MODE_DESAFIANTE = Symbol('GAME_MODE_DESAFIANTE');
 const GAME_MODE_LEGEND = Symbol('GAME_MODE_LEGEND');
+const GAME_MODE_CUSTOM = Symbol('GAME_MODE_CUSTOM');
 
 // Available Menus
 const MENU_MAIN = Symbol('MENU_MAIN');
@@ -149,7 +159,9 @@ const state = {
 		touchPower: 1.0,
 		touchPowerPrice: 100,
 		mining: 1.0,
-		miningPrice: 50
+		miningPrice: 50,
+		scoreMult: 1.0,
+		scorePrice: 2000
 	},
 	achievements: {} // will be filled from ACHIEVEMENT_DEFS
 };
@@ -201,7 +213,7 @@ function loadGfxSettings() {
 			const d = JSON.parse(raw);
 			let scale = Number(d.scale);
 			if (!Number.isFinite(scale)) scale = 1;
-			scale = Math.min(4, Math.max(0.25, scale));
+			scale = Math.min(8, Math.max(0.25, scale));
 			let particles = Number(d.particles);
 			if (!Number.isFinite(particles)) particles = 100;
 			particles = Math.min(100, Math.max(0, particles));
@@ -256,7 +268,7 @@ function applyGfxSettings() {
 	}
 	const p = gfxSettings.particles / 100;
 	gfx.sparkMult = p;
-	gfx.maxSparks = Math.floor(20 + p * 100);
+	gfx.maxSparks = Math.floor(20 + p * 180);
 	if (typeof window.__resizeCanvas === 'function') {
 		window.__resizeCanvas();
 	}
@@ -267,17 +279,23 @@ const isMenuVisible = () => !!state.menus.active;
 const isCasualGame = () => state.game.mode === GAME_MODE_CASUAL;
 const isHeartsGame = () => state.game.mode === GAME_MODE_HEARTS;
 const isDesafianteGame = () => state.game.mode === GAME_MODE_DESAFIANTE;
+const isLegendGame = () => state.game.mode === GAME_MODE_LEGEND;
+const isCustomGame = () => state.game.mode === GAME_MODE_CUSTOM;
 // gamePaused stays true while browsing shop/achievements opened from pause
 let gamePaused = false;
 const isPaused = () => gamePaused;
 const canEarnCoinsAndAchievements = () => 
 	state.game.mode === GAME_MODE_RANKED || 
 	state.game.mode === GAME_MODE_HEARTS || 
-	state.game.mode === GAME_MODE_DESAFIANTE;
+	state.game.mode === GAME_MODE_DESAFIANTE ||
+	state.game.mode === GAME_MODE_LEGEND ||
+	state.game.mode === GAME_MODE_CUSTOM;
 const hasLevelBar = () => 
 	state.game.mode === GAME_MODE_RANKED || 
 	state.game.mode === GAME_MODE_HEARTS || 
-	state.game.mode === GAME_MODE_DESAFIANTE;
+	state.game.mode === GAME_MODE_DESAFIANTE ||
+	state.game.mode === GAME_MODE_LEGEND ||
+	state.game.mode === GAME_MODE_CUSTOM;
 
 
 ///////////////////
@@ -323,6 +341,8 @@ const loadUpgrades = () => {
 			if (data.touchPowerPrice) state.upgrades.touchPowerPrice = data.touchPowerPrice;
 			if (data.mining) state.upgrades.mining = data.mining;
 			if (data.miningPrice) state.upgrades.miningPrice = data.miningPrice;
+			if (data.scoreMult) state.upgrades.scoreMult = data.scoreMult;
+			if (data.scorePrice) state.upgrades.scorePrice = data.scorePrice;
 		}
 	} catch(e) {}
 };
@@ -333,7 +353,13 @@ const saveUpgrades = () => {
 
 // Level helpers
 const getLevelRequirement = (level) => {
-	// Points needed to complete this level and go to level+1
+	if (isLegendGame()) {
+		// Legend: 1,000,000 por nivel (nivel 1 = 1M, nivel 2 = 2M, …)
+		return Math.max(1, level) * 1000000;
+	}
+	if (isCustomGame() && customSettings.levelPoints > 0) {
+		return Math.max(1, level) * customSettings.levelPoints;
+	}
 	let req = 100;
 	for (let i = 1; i < level; i++) {
 		req *= 1.2;
@@ -351,10 +377,13 @@ const checkLevelUp = () => {
 	const req = getLevelRequirement(state.game.level);
 	const gained = state.game.score - state.game.scoreAtLevelStart;
 	if (gained >= req) {
+		const prev = state.game.level;
 		state.game.level++;
 		state.game.scoreAtLevelStart = state.game.score;
-		saveModeProgress();
+		// Legend no guarda progreso de barra/nivel entre partidas
+		if (!isLegendGame()) saveModeProgress();
 		checkLevelAchievements();
+		if (isLegendGame()) onLegendLevelReached(state.game.level);
 		playSfx('levelup', 0.75);
 		return true;
 	}
@@ -419,6 +448,8 @@ const ACHIEVEMENT_DEFS = [
 	{ id: 'level_50',      name: 'Pro',                   desc: 'Supera el nivel 50.',                reward: 80,  icon: '💎' },
 	{ id: 'level_70',      name: 'Maestro',               desc: 'Supera el nivel 70.',                reward: 100, icon: '🏆' },
 	{ id: 'level_100',     name: 'Legend',                desc: 'Supera el nivel 100.',               reward: 0,   icon: '🌟', special: true },
+	{ id: 'legend_ia',     name: 'IA-Crash',              desc: 'Te mereces un descanso, pero solo de 15 minutos.', reward: 0, icon: '🤖', noReward: true, secret: true },
+	{ id: 'custom_gift',   name: 'A gift from me',        desc: 'Modo Custom desbloqueado.',          reward: 0,   icon: '🎁', noReward: true, secret: true },
 ];
 
 const achievementsKey = 'CubeCrash_Achievements';
@@ -1566,12 +1597,60 @@ const getTarget = (() => {
 			}
 		}
 
+		// --- LEGEND ---
+		if (isLegendGame()) {
+			color = pickOne(allColors);
+			wireframe = false;
+			isResistant = false;
+			health = 1;
+			maxHealth = 1;
+			const onS = targets.length;
+			const redChance = clamp(0.06 - onS * 0.004, 0.02, 0.06);
+			const strongChance = clamp(0.22 - onS * 0.015, 0.08, 0.28);
+			const roll = Math.random();
+			if (roll < redChance) {
+				// Red-cube: wireframe rojo, romper = muerte
+				color = RED;
+				wireframe = true;
+			} else if (roll < redChance + strongChance) {
+				isResistant = true;
+				maxHealth = randomInt(3, 5);
+				health = maxHealth;
+				color = pickOne(allColors);
+			}
+		} else if (isCustomGame()) {
+			color = pickOne(allColors);
+			wireframe = false;
+			isResistant = false;
+			health = 1;
+			maxHealth = 1;
+			const onS = targets.length;
+			if (customSettings.allowRed && Math.random() < 0.05) {
+				color = RED; wireframe = true;
+			} else if (customSettings.allowSlowmo && !slowmoBlocked && Math.random() < slowChanceGeneral) {
+				color = BLUE; wireframe = true;
+			} else if (customSettings.allowStrong && Math.random() < 0.12) {
+				isResistant = true;
+				maxHealth = randomInt(3, 5);
+				health = maxHealth;
+			}
+		}
+
 		const target = getTargetOfStyle(color, wireframe);
 		target.hit = false;
 		target.maxHealth = maxHealth;
 		target.health = health;
 		target.isResistant = isResistant;
+		target.barrierBroken = false;
+		target.isRedCube = !!(wireframe && color === RED);
+		target.cubeScale = isLegendGame() ? 0.62 : (isCustomGame() ? (customSettings.cubeScale || 1) : 1);
 		updateTargetHealth(target, 0);
+		if (target.cubeScale && target.cubeScale !== 1 && !target._scaledOnce) {
+			const s = target.cubeScale;
+			target.vertices.forEach(v => { v.x *= s; v.y *= s; v.z *= s; });
+			if (target.shadowVertices) target.shadowVertices.forEach(v => { v.x *= s; v.y *= s; v.z *= s; });
+			target._scaledOnce = true;
+		}
 
 		const spinSpeeds = [
 			Math.random() * 0.1 - 0.05,
@@ -1611,6 +1690,17 @@ const updateTargetHealth = (target, healthDelta) => {
 
 
 const returnTarget = target => {
+	// Restaurar escala de pool (Leyenda/Custom)
+	if (target._scaledOnce && target.cubeScale && target.cubeScale !== 1) {
+		const inv = 1 / target.cubeScale;
+		target.vertices.forEach(v => { v.x *= inv; v.y *= inv; v.z *= inv; });
+		if (target.shadowVertices) target.shadowVertices.forEach(v => { v.x *= inv; v.y *= inv; v.z *= inv; });
+	}
+	target._scaledOnce = false;
+	target.cubeScale = 1;
+	target.barrierBroken = false;
+	target.isRedCube = false;
+	target.isResistant = false;
 	target.reset();
 	const pool = target.wireframe ? targetWireframePool : targetPool;
 	pool.get(target.color).push(target);
@@ -2042,6 +2132,7 @@ const miningValNode = $('.mining-val');
 const shopBuyBtnSlowmo = $('.shop-buy-btn[data-item="slowmo"]');
 const shopBuyBtnTouch = $('.shop-buy-btn[data-item="touch"]');
 const shopBuyBtnMining = $('.shop-buy-btn[data-item="mining"]');
+const shopBuyBtnScore = $('.shop-buy-btn[data-item="score"]');
 
 let previousMenuBeforeShop = MENU_MAIN;
 
@@ -2077,6 +2168,21 @@ function renderShop() {
 		shopBuyBtnMining.innerHTML = coinBtnLabel(state.upgrades.miningPrice);
 		shopBuyBtnMining.disabled = state.game.coins < state.upgrades.miningPrice;
 	}
+	const scoreCard = document.querySelector('.shop-card[data-item="score"]');
+	if (scoreCard) {
+		scoreCard.style.display = isLegendGame() ? '' : 'none';
+	}
+	const scoreVal = document.querySelector('.score-mult-val');
+	if (scoreVal) scoreVal.textContent = 'x' + (state.upgrades.scoreMult || 1).toFixed(0);
+	if (shopBuyBtnScore) {
+		shopBuyBtnScore.innerHTML = coinBtnLabel(state.upgrades.scorePrice || 2000);
+		shopBuyBtnScore.disabled = state.game.coins < (state.upgrades.scorePrice || 2000);
+	}
+	// En Legend solo Mining + Score
+	document.querySelectorAll('.shop-card[data-item="slowmo"], .shop-card[data-item="touch"]').forEach(c => {
+		c.style.opacity = isLegendGame() ? '0.35' : '1';
+		c.style.pointerEvents = isLegendGame() ? 'none' : '';
+	});
 }
 
 // When true, achievements screen is view-only (no claim buttons)
@@ -2128,6 +2234,7 @@ function renderAchievementsList() {
 	list.innerHTML = '';
 	ACHIEVEMENT_DEFS.forEach(def => {
 		const data = state.achievements[def.id] || { unlocked: false, claimed: false };
+		if (def.secret && !data.unlocked) return; // secretos ocultos hasta desbloquear
 		const item = document.createElement('div');
 		item.className = 'ach-item';
 		if (!achievementsViewOnly && data.unlocked && !data.claimed && !def.special && !def.noReward && def.reward) {
@@ -2203,9 +2310,11 @@ function renderMenus() {
 		case MENU_MAIN:
 			renderMainCoins();
 			updateMainSecretButtons();
+			updateModeCardsVisibility();
 			showMenu(menuMainNode);
 			break;
 		case MENU_MODES:
+			updateModeCardsVisibility();
 			showMenu(menuModesNode);
 			break;
 		case MENU_PAUSE:
@@ -2278,11 +2387,14 @@ handleClick($('.modes-back-btn'), () => setActiveMenu(MENU_MAIN));
 document.querySelectorAll('.mode-card').forEach(card => {
 	card.addEventListener('click', () => {
 		const mode = card.dataset.mode;
-		if (mode === 'legend') return;
+		if (mode === 'legend' && !legendUnlocked) return;
+		if (mode === 'custom' && !customUnlocked) return;
 		let gameMode = GAME_MODE_RANKED;
 		if (mode === 'casual') gameMode = GAME_MODE_CASUAL;
 		else if (mode === 'hearts') gameMode = GAME_MODE_HEARTS;
 		else if (mode === 'desafiante') gameMode = GAME_MODE_DESAFIANTE;
+		else if (mode === 'legend') gameMode = GAME_MODE_LEGEND;
+		else if (mode === 'custom') gameMode = GAME_MODE_CUSTOM;
 		setGameMode(gameMode);
 		setActiveMenu(null);
 		resetGame();
@@ -2361,6 +2473,21 @@ handleClick(shopBuyBtnMining, () => {
 	playSfx('cash', 0.7);
 });
 
+handleClick(shopBuyBtnScore, () => {
+	if (!isLegendGame()) return;
+	const price = state.upgrades.scorePrice || 2000;
+	if (state.game.coins < price) return;
+	state.game.coins -= price;
+	state.upgrades.scoreMult = (state.upgrades.scoreMult || 1) + 1;
+	state.upgrades.scorePrice = price + 1000;
+	saveCoins();
+	saveUpgrades();
+	renderCoins();
+	renderMainCoins();
+	renderShop();
+	playSfx('cash', 0.7);
+});
+
 // Achievements
 handleClick($('.ach-back-btn'), () => setActiveMenu(previousMenuBeforeAchievements));
 
@@ -2379,9 +2506,11 @@ document.getElementById('terminalSubmit')?.addEventListener('click', () => {
 	if (val === SECRET_PASSWORD) {
 		iaUnlocked = true;
 		localStorage.setItem(IA_UNLOCK_KEY, '1');
-		terminalUnlocked = false; // terminal se oculta
+		unlockLegendAndCustomFromTerminal();
+		terminalUnlocked = false;
 		localStorage.removeItem(TERM_UNLOCK_KEY);
 		if (err) err.textContent = '';
+		updateModeCardsVisibility();
 		setActiveMenu(MENU_MAIN);
 		try { playSfx('levelup', 0.6); } catch (e) {}
 	} else {
@@ -2568,18 +2697,18 @@ function resetGame() {
 	state.game.lives = 3;
 	startMusic();
 
-	// Restore level + bar progress for all modes except Casual
-	if (!isCasualGame()) {
+	// Legend: siempre desde cero. Casual: sin progreso. Resto: restaurar.
+	if (isLegendGame() || isCasualGame() || (isCustomGame() && !customSettings.saveProgress)) {
+		state.game.level = 1;
+		state.game.scoreAtLevelStart = 0;
+		state.game.score = 0;
+	} else {
 		const saved = loadModeProgress(state.game.mode);
 		state.game.level = saved.level;
 		const req = getLevelRequirement(state.game.level);
 		const gained = Math.floor(req * saved.progress);
 		state.game.scoreAtLevelStart = 0;
 		state.game.score = gained;
-	} else {
-		state.game.level = 1;
-		state.game.scoreAtLevelStart = 0;
-		state.game.score = 0;
 	}
 
 	resetAllCooldowns();
@@ -2813,8 +2942,17 @@ function tick(width, height, simTime, simSpeed, lag, realDt = simTime) {
 		// We can't use scaled pointer speed to determine this, since we care about actual screen
 		// distance covered.
 		const hitTestCount = Math.ceil(pointerSpeed / targetRadius * 2);
-		// Resistant: dual hitbox — barrier (larger) + cube (normal). Use the larger one.
-		const hitRadius = target.isResistant ? targetHitRadius * 1.55 : targetHitRadius;
+		// Hitbox cubre el cubo completo (escala con profundidad). Strong con barrera: más grande.
+		const depth = cameraDistance / Math.max(40, cameraDistance - (target.z || 0));
+		const scaleMul = (target.cubeScale || 1) * depth;
+		let hitRadius;
+		if (target.isResistant && !target.barrierBroken) {
+			// Barrera (esfera) más grande que el cubo
+			hitRadius = targetHitRadius * 2.05 * scaleMul;
+		} else {
+			// Cubo normal / slow / strong sin barrera — cubre aristas completas
+			hitRadius = targetHitRadius * 1.75 * scaleMul;
+		}
 		for (let ii=1; ii<=hitTestCount; ii++) {
 			const percent = 1 - (ii / hitTestCount);
 			const hitX = pointerScene.x - pointerDelta.x * percent;
@@ -2837,54 +2975,74 @@ function tick(width, height, simTime, simSpeed, lag, realDt = simTime) {
 					const sparkSpeed = 7 + pointerSpeedScaled * 0.125;
 
 					if (pointerSpeedScaled > minPointerSpeed) {
-						// Touch Power determines slash damage
-						target.health -= state.upgrades.touchPower;
-						if (hasLevelBar()) incrementScore(10);
-
-						if (target.health <= 0) {
-							incrementCubeCount(1);
-
-							state.game.totalCubesEver++;
-							saveTotalCubes();
-							checkCubeAchievements();
-
-							if (target.wireframe) unlockAchievement('first_slowmo');
-							if (target.isResistant) unlockAchievement('first_resist');
-
-							if (canEarnCoinsAndAchievements()) {
-								let base = target.isResistant ? target.maxHealth : 1;
-								let coinsEarned = Math.floor(base * state.upgrades.mining);
-								if (isDesafianteGame()) coinsEarned *= 2;
-								if (coinsEarned < 1) coinsEarned = 1;
-								state.game.coins += coinsEarned;
-								saveCoins();
-								renderCoins();
-							}
-
+						// Red-cube (Legend): romperlo = derrota instantánea
+						if (target.isRedCube) {
 							createBurst(target, forceMultiplier);
-							sparkBurst(hitX, hitY, 8, sparkSpeed);
-							if (target.isResistant) {
-								shieldBurst(hitX, hitY, true);
-								playSfx('break', 0.8);
-							}
-
-							if (target.wireframe) {
-								let duration = state.upgrades.slowmoDuration;
-								if (isDesafianteGame()) duration = Math.floor(duration * 0.5);
-								slowmoRemaining = duration;
-								spawnTime = 0;
-								spawnExtra = 2;
-							}
+							sparkBurst(hitX, hitY, 10, sparkSpeed);
 							targets.splice(i, 1);
 							returnTarget(target);
+							endGame();
+							continue targetLoop;
+						}
 
-							if (hasLevelBar() && checkLevelUp()) {
-								renderLevelBar();
-								checkLevelAchievements();
+						target.health -= state.upgrades.touchPower;
+						const scoreUnit = Math.round(10 * (state.upgrades.scoreMult || 1));
+						if (hasLevelBar()) incrementScore(scoreUnit);
+
+						if (target.health <= 0) {
+							// Strong: primero se rompe la barrera; el cubo interior queda
+							if (target.isResistant && !target.barrierBroken) {
+								target.barrierBroken = true;
+								target.isResistant = false;
+								target.health = 1;
+								target.maxHealth = 1;
+								shieldBurst(hitX, hitY, true);
+								sparkBurst(hitX, hitY, 10, sparkSpeed);
+								playSfx('break', 0.85); // solo barrera
+								unlockAchievement('first_resist');
+								updateTargetHealth(target, 0);
+							} else {
+								incrementCubeCount(1);
+								state.game.totalCubesEver++;
+								saveTotalCubes();
+								checkCubeAchievements();
+
+								if (target.wireframe) unlockAchievement('first_slowmo');
+
+								if (canEarnCoinsAndAchievements()) {
+									let base = target.barrierBroken ? 1 : 1;
+									let coinsEarned = Math.floor(base * state.upgrades.mining);
+									if (isDesafianteGame()) coinsEarned *= 2;
+									if (coinsEarned < 1) coinsEarned = 1;
+									state.game.coins += coinsEarned;
+									saveCoins();
+									renderCoins();
+								}
+
+								createBurst(target, forceMultiplier);
+								sparkBurst(hitX, hitY, 8, sparkSpeed);
+								// sin break.mp3 aquí (ya no es barrera)
+
+								if (target.wireframe && !target.isRedCube) {
+									let duration = state.upgrades.slowmoDuration;
+									if (isDesafianteGame()) duration = Math.floor(duration * 0.5);
+									if (!(isLegendGame() || (isCustomGame() && !customSettings.allowSlowmo))) {
+										slowmoRemaining = duration;
+									}
+									spawnTime = 0;
+									spawnExtra = 2;
+								}
+								targets.splice(i, 1);
+								returnTarget(target);
+
+								if (hasLevelBar() && checkLevelUp()) {
+									renderLevelBar();
+									checkLevelAchievements();
+								}
 							}
 						} else {
 							sparkBurst(hitX, hitY, 8, sparkSpeed);
-							if (target.isResistant) {
+							if (target.isResistant && !target.barrierBroken) {
 								shieldBurst(hitX, hitY, false);
 							} else {
 								glueShedSparks(target);
@@ -2892,7 +3050,7 @@ function tick(width, height, simTime, simSpeed, lag, realDt = simTime) {
 							updateTargetHealth(target, 0);
 						}
 					} else {
-						if (hasLevelBar()) incrementScore(5);
+						if (hasLevelBar()) incrementScore(Math.round(5 * (state.upgrades.scoreMult || 1)));
 						sparkBurst(hitX, hitY, 3, sparkSpeed);
 					}
 				}
@@ -3225,7 +3383,7 @@ function draw(ctx, width, height, viewScale) {
 	// Resistant cube shields: transparent blue spheres with visible edges
 	// ------------------------------------------------------------------
 	targets.forEach(target => {
-		if (!target.isResistant || !target.projected) return;
+		if (!target.isResistant || target.barrierBroken || !target.projected) return;
 
 		const px = target.projected.x;
 		const py = target.projected.y;
@@ -3371,21 +3529,9 @@ function setupCanvases() {
 	function paintBackground(ts) {
 		const cw = canvas.width;
 		const ch = canvas.height;
-		// 25s cycle matching CSS grayGradient
-		const t = ((ts || 0) % 25000) / 25000;
-		// Sweep gradient angle/position
-		const x0 = cw * (0.2 + 0.6 * Math.sin(t * Math.PI * 2));
-		const y0 = 0;
-		const x1 = cw * (0.8 + 0.2 * Math.cos(t * Math.PI * 2));
-		const y1 = ch;
-		const g = ctx.createLinearGradient(x0, y0, x1, y1);
-		g.addColorStop(0, '#3a3a3e');
-		g.addColorStop(0.25, '#2a2a30');
-		g.addColorStop(0.5, '#3a4550');
-		g.addColorStop(0.75, '#4a4a50');
-		g.addColorStop(1, '#2e2e32');
 		ctx.setTransform(1, 0, 0, 1, 0, 0);
-		ctx.fillStyle = g;
+		// Fondo sólido gris neutro (pedido por jugadores)
+		ctx.fillStyle = '#2f2f33';
 		ctx.fillRect(0, 0, cw, ch);
 	}
 
@@ -3544,6 +3690,112 @@ renderLevelBar();
 // SPLASH / LOADING SEQUENCE
 // ========================
 
+
+// ========================
+// LEGEND / CUSTOM / TIMED IA
+// ========================
+const LEGEND_UNLOCK_KEY = 'CubeCrash_LegendUnlocked';
+const CUSTOM_UNLOCK_KEY = 'CubeCrash_CustomUnlocked';
+const IA_TIMED_KEY = 'CubeCrash_IATimed';
+
+let legendUnlocked = localStorage.getItem(LEGEND_UNLOCK_KEY) === '1';
+let customUnlocked = localStorage.getItem(CUSTOM_UNLOCK_KEY) === '1';
+
+function defaultCustomSettings() {
+	return {
+		cubeScale: 1,
+		spawnRate: 1,
+		allowSlowmo: true,
+		allowStrong: true,
+		allowRed: false,
+		shopEnabled: true,
+		allowMining: true,
+		allowSlowmoShop: true,
+		allowTouch: true,
+		allowScore: false,
+		coinMult: 1,
+		scoreBase: 10,
+		endless: true,
+		levelPoints: 100,
+		saveProgress: true,
+		aiAllowed: false,
+		debuffLoseOnMiss: true
+	};
+}
+function loadCustomSettings() {
+	try {
+		const raw = localStorage.getItem('CubeCrash_CustomSettings');
+		if (raw) return Object.assign(defaultCustomSettings(), JSON.parse(raw));
+	} catch (e) {}
+	return defaultCustomSettings();
+}
+const customSettings = loadCustomSettings();
+function saveCustomSettings() {
+	localStorage.setItem('CubeCrash_CustomSettings', JSON.stringify(customSettings));
+}
+
+function getTimedIA() {
+	try {
+		return JSON.parse(localStorage.getItem(IA_TIMED_KEY) || 'null') || { until: 0, cooldownUntil: 0 };
+	} catch (e) {
+		return { until: 0, cooldownUntil: 0 };
+	}
+}
+function setTimedIA(data) {
+	localStorage.setItem(IA_TIMED_KEY, JSON.stringify(data));
+}
+function isIAEffectivelyUnlocked() {
+	if (iaUnlocked) return true; // permanente (terminal / nivel 100)
+	const t = getTimedIA();
+	return Date.now() < (t.until || 0);
+}
+function getIARemainingMs() {
+	if (iaUnlocked) return null; // permanente
+	const t = getTimedIA();
+	return Math.max(0, (t.until || 0) - Date.now());
+}
+function getIACooldownRemainingMs() {
+	const t = getTimedIA();
+	return Math.max(0, (t.cooldownUntil || 0) - Date.now());
+}
+function grantTimedIA(minutes) {
+	const now = Date.now();
+	const t = getTimedIA();
+	if (now < (t.cooldownUntil || 0) && !iaUnlocked) return false;
+	setTimedIA({
+		until: now + minutes * 60 * 1000,
+		cooldownUntil: now + 60 * 60 * 1000 // 1h cooldown from grant
+	});
+	return true;
+}
+function onLegendLevelReached(newLevel) {
+	// newLevel is level AFTER level-up (e.g. 11 means surpassed 10)
+	if (newLevel > 10) {
+		unlockAchievement('legend_ia');
+		if (!iaUnlocked) {
+			grantTimedIA(15);
+		}
+	}
+	if (newLevel > 100) {
+		unlockAchievement('custom_gift');
+		iaUnlocked = true;
+		localStorage.setItem(IA_UNLOCK_KEY, '1');
+		customUnlocked = true;
+		localStorage.setItem(CUSTOM_UNLOCK_KEY, '1');
+		legendUnlocked = true;
+		localStorage.setItem(LEGEND_UNLOCK_KEY, '1');
+	}
+}
+function unlockLegendAndCustomFromTerminal() {
+	legendUnlocked = true;
+	customUnlocked = true;
+	iaUnlocked = true;
+	localStorage.setItem(LEGEND_UNLOCK_KEY, '1');
+	localStorage.setItem(CUSTOM_UNLOCK_KEY, '1');
+	localStorage.setItem(IA_UNLOCK_KEY, '1');
+}
+
+
 // ========================
 // SECRET TERMINAL + IA-CRASH
 // ========================
@@ -3628,6 +3880,21 @@ function renderIAMenu() {
 		en.setAttribute('aria-pressed', iaSettings.enabled ? 'true' : 'false');
 	}
 	if (lab) lab.textContent = iaSettings.enabled ? 'IA-Crash activada' : 'IA-Crash desactivada';
+	const status = document.getElementById('iaAccessStatus');
+	if (status) {
+		if (iaUnlocked) status.textContent = 'Acceso permanente';
+		else {
+			const rem = getIARemainingMs();
+			const cd = getIACooldownRemainingMs();
+			if (rem > 0) {
+				const m = Math.floor(rem / 60000), s = Math.floor((rem % 60000) / 1000);
+				status.textContent = 'Tiempo restante: ' + m + ':' + String(s).padStart(2, '0');
+			} else if (cd > 0) {
+				const m = Math.floor(cd / 60000), s = Math.floor((cd % 60000) / 1000);
+				status.textContent = 'Enfriamiento: ' + m + ':' + String(s).padStart(2, '0');
+			} else status.textContent = 'Sin acceso temporal (supera niv. 10 en Leyenda)';
+		}
+	}
 
 	document.querySelectorAll('.ia-mode-btn').forEach(btn => {
 		const mode = btn.dataset.mode;
@@ -3670,34 +3937,52 @@ function aiDestroyTarget(target) {
 
 	const hitX = target.x;
 	const hitY = target.y;
-	const wasResistant = !!target.isResistant;
-	const wasWire = !!target.wireframe;
 
-	// Apply slash damage (strong cubes need multiple hits)
-	target.health -= state.upgrades.touchPower;
-	if (hasLevelBar()) incrementScore(10);
-
-	if (target.health > 0) {
-		// Hit but still standing (typical strong cube)
-		sparkBurst(hitX, hitY, 6, 12);
-		if (wasResistant) shieldBurst(hitX, hitY, false);
-		else glueShedSparks(target);
-		updateTargetHealth(target, 0);
-		return true; // still alive → IA debe volver a atacar
+	if (target.isRedCube) {
+		try { createBurst(target, 1); } catch (e) {}
+		sparkBurst(hitX, hitY, 10, 14);
+		targets.splice(idx, 1);
+		returnTarget(target);
+		endGame();
+		return false;
 	}
 
-	// Destroyed
+	const hadBarrier = !!(target.isResistant && !target.barrierBroken);
+	const wasWire = !!target.wireframe;
+
+	target.health -= state.upgrades.touchPower;
+	if (hasLevelBar()) incrementScore(Math.round(10 * (state.upgrades.scoreMult || 1)));
+
+	if (target.health > 0) {
+		sparkBurst(hitX, hitY, 6, 12);
+		if (hadBarrier) shieldBurst(hitX, hitY, false);
+		else glueShedSparks(target);
+		updateTargetHealth(target, 0);
+		return true;
+	}
+
+	// Barrier breaks, cube remains
+	if (hadBarrier) {
+		target.barrierBroken = true;
+		target.isResistant = false;
+		target.health = 1;
+		target.maxHealth = 1;
+		shieldBurst(hitX, hitY, true);
+		sparkBurst(hitX, hitY, 10, 14);
+		try { playSfx('break', 0.85); } catch (e) {}
+		unlockAchievement('first_resist');
+		updateTargetHealth(target, 0);
+		return true;
+	}
+
 	incrementCubeCount(1);
 	state.game.totalCubesEver++;
 	saveTotalCubes();
 	checkCubeAchievements();
-
-	if (wasWire) unlockAchievement('first_slowmo');
-	if (wasResistant) unlockAchievement('first_resist');
+	if (wasWire && !target.isRedCube) unlockAchievement('first_slowmo');
 
 	if (canEarnCoinsAndAchievements()) {
-		let base = wasResistant ? target.maxHealth : 1;
-		let coinsEarned = Math.floor(base * state.upgrades.mining);
+		let coinsEarned = Math.floor(1 * state.upgrades.mining);
 		if (isDesafianteGame()) coinsEarned *= 2;
 		if (coinsEarned < 1) coinsEarned = 1;
 		state.game.coins += coinsEarned;
@@ -3708,13 +3993,7 @@ function aiDestroyTarget(target) {
 	try { createBurst(target, 1); } catch (e) {}
 	sparkBurst(hitX, hitY, 8, 14);
 
-	// break.mp3 = sonido de barrera → SOLO cubos resistentes al destruirse
-	if (wasResistant) {
-		shieldBurst(hitX, hitY, true);
-		try { playSfx('break', 0.8); } catch (e) {}
-	}
-
-	if (wasWire) {
+	if (wasWire && !target.isRedCube && !isLegendGame()) {
 		let duration = state.upgrades.slowmoDuration;
 		if (isDesafianteGame()) duration = Math.floor(duration * 0.5);
 		slowmoRemaining = duration;
@@ -3755,8 +4034,9 @@ function tickAI(simTime, width, height, viewScale) {
 		if (!trail.points.length) aiTrails.splice(i, 1);
 	}
 
-	if (!iaSettings.enabled || !iaUnlocked) return;
+	if (!iaSettings.enabled || !isIAEffectivelyUnlocked()) return;
 	if (!isInGame() || isCasualGame()) return;
+	if (isCustomGame() && !customSettings.aiAllowed) return;
 	if (playerOverrideAI) return;
 	if (iaSettings.mode !== 'basic') return;
 
@@ -3778,6 +4058,7 @@ function tickAI(simTime, width, height, viewScale) {
 	const available = [];
 	for (let i = 0; i < targets.length; i++) {
 		const t = targets[i];
+		if (t.isRedCube) continue; // IA no toca red-cubes
 		if (t.health > 0 && (t.aiAge || 0) >= minAge && t.y < halfH - 10 && !claimed.has(t)) {
 			available.push(t);
 		}
@@ -3864,8 +4145,35 @@ function drawAITrails(ctx) {
 function updateAIHudBadge() {
 	const badge = document.getElementById('aiActiveBadge');
 	if (!badge) return;
-	const show = iaUnlocked && iaSettings.enabled && isInGame() && !isCasualGame();
-	badge.style.display = show ? 'flex' : 'none';
+	const active = isIAEffectivelyUnlocked() && iaSettings.enabled && isInGame() && !isCasualGame();
+	badge.style.display = active ? 'flex' : 'none';
+	const timerEl = document.getElementById('aiBadgeTimer');
+	if (timerEl) {
+		const rem = getIARemainingMs();
+		if (rem == null) {
+			timerEl.textContent = '∞';
+		} else if (rem > 0) {
+			const m = Math.floor(rem / 60000);
+			const s = Math.floor((rem % 60000) / 1000);
+			timerEl.textContent = m + ':' + String(s).padStart(2, '0');
+		} else {
+			timerEl.textContent = '';
+		}
+	}
+}
+function updateModeCardsVisibility() {
+	document.querySelectorAll('.mode-card[data-mode="legend"]').forEach(c => {
+		c.classList.toggle('mode-card--locked', !legendUnlocked);
+		c.disabled = !legendUnlocked;
+		const d = c.querySelector('.mode-card__desc');
+		if (d) d.textContent = legendUnlocked
+			? 'Extremo · 1M pts/nivel · Red-cubes'
+			: 'Bloqueado';
+	});
+	document.querySelectorAll('.mode-card[data-mode="custom"]').forEach(c => {
+		c.style.display = customUnlocked ? '' : 'none';
+		c.classList.toggle('mode-card--locked', !customUnlocked);
+	});
 }
 
 

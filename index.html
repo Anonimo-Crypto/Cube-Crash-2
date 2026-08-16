@@ -55,7 +55,7 @@
     <div class="splash__stage splash__stage--logo" id="splashLogo">
       <img src="512.png" alt="Cube Crash" class="splash__logo">
       <div class="splash__title">CUBE CRASH</div>
-      <div class="splash__version">v1.11.1</div>
+      <div class="splash__version">v1.12</div>
     </div>
     <div class="splash__stage splash__stage--credits" id="splashCredits">
       <div class="splash__credit-block">
@@ -86,6 +86,7 @@
     <div id="aiActiveBadge" class="ai-badge" style="display:none">
       <img src="data/images/ai-crash.png" alt="IA">
       <span>IA-Crash</span>
+      <span id="aiBadgeTimer" class="ai-badge__timer"></span>
     </div>
 
     <div class="level-bar">
@@ -175,8 +176,12 @@
           <div class="mode-card__desc">Más cubos · x2 monedas · Más difíciles</div>
         </button>
         <button type="button" class="mode-card mode-card--locked" data-mode="legend">
-          <div class="mode-card__name">Legend</div>
-          <div class="mode-card__desc">En desarrollo. ¡Gracias por jugar!</div>
+          <div class="mode-card__name">Leyenda</div>
+          <div class="mode-card__desc">Bloqueado</div>
+        </button>
+        <button type="button" class="mode-card" data-mode="custom" style="display:none">
+          <div class="mode-card__name">Custom</div>
+          <div class="mode-card__desc">Personaliza reglas, spawn y tienda</div>
         </button>
       </div>
       <button type="button" class="btn btn-back modes-back-btn">← Volver</button>
@@ -243,6 +248,14 @@
             </div>
             <button type="button" class="shop-card__buy shop-buy-btn" data-item="mining">50</button>
           </div>
+          <div class="shop-card" data-item="score" style="display:none">
+            <div class="shop-card__icon">📈</div>
+            <div class="shop-card__body">
+              <div class="shop-card__name">Score</div>
+              <div class="shop-card__desc">Solo Leyenda · puntos/cubo <span class="score-mult-val">x1</span></div>
+            </div>
+            <button type="button" class="shop-card__buy shop-buy-btn" data-item="score">2000</button>
+          </div>
         </div>
         <button type="button" class="btn shop-close-btn">Cerrar terminal</button>
       </div>
@@ -286,6 +299,8 @@
               <button type="button" class="gfx-res-btn" data-scale="2">2×<span>1440p / 2160p</span></button>
               <button type="button" class="gfx-res-btn" data-scale="3">3×<span>2160p / 3240p</span></button>
               <button type="button" class="gfx-res-btn" data-scale="4">4×<span>2880p / 4320p</span></button>
+              <button type="button" class="gfx-res-btn" data-scale="6">6×<span>6K · 4320p / 6480p</span></button>
+              <button type="button" class="gfx-res-btn" data-scale="8">8×<span>8K · 5760p / 8640p</span></button>
             </div>
           </section>
 
@@ -367,6 +382,7 @@
         <div class="gfx-screen__body">
           <section class="gfx-section">
             <div class="gfx-section__title">Activar IA-Crash</div>
+            <div class="gfx-section__hint" id="iaAccessStatus">Comprobando acceso…</div>
             <div class="gfx-section__hint">
               Un núcleo autónomo que analiza trayectorias y ejecuta cortes precisos por ti.
               Ideal para practicar patrones o dejar que el sistema demuestre el ritmo del modo.
