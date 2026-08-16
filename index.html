@@ -55,7 +55,7 @@
     <div class="splash__stage splash__stage--logo" id="splashLogo">
       <img src="512.png" alt="Cube Crash" class="splash__logo">
       <div class="splash__title">CUBE CRASH</div>
-      <div class="splash__version">v1.12</div>
+      <div class="splash__version">v1.13.1</div>
     </div>
     <div class="splash__stage splash__stage--credits" id="splashCredits">
       <div class="splash__credit-block">
@@ -148,6 +148,7 @@
         <button type="button" class="btn shop-btn">Tienda</button>
         <button type="button" class="btn achievements-btn">Logros</button>
         <button type="button" class="btn graphics-btn">Gráficos</button>
+        <button type="button" class="btn update-btn">Actualizar</button>
         <button type="button" class="btn terminal-btn" style="display:none">Terminal</button>
         <button type="button" class="btn ia-btn" style="display:none">IA</button>
       </div>
@@ -194,6 +195,7 @@
         <button type="button" class="btn btn-primary resume-btn">Reanudar</button>
         <button type="button" class="btn shop-btn--pause">Tienda</button>
         <button type="button" class="btn achievements-btn--pause">Logros</button>
+        <button type="button" class="btn help-btn--pause">Ayuda</button>
         <button type="button" class="btn menu-btn--pause">Salir al Menú</button>
       </div>
     </div>
@@ -349,6 +351,55 @@
       </div>
     </div>
 
+    
+    <!-- CUSTOM SETUP -->
+    <div class="menu menu--custom">
+      <div class="gfx-screen">
+        <div class="gfx-screen__top">
+          <button type="button" class="gfx-back-btn custom-back-btn">Volver</button>
+          <div class="gfx-screen__heading">
+            <span class="gfx-screen__badge">CFG</span>
+            <h2>CUSTOM</h2>
+          </div>
+        </div>
+        <div class="gfx-screen__body">
+          <section class="gfx-section">
+            <div class="gfx-section__title">Tamaño de cubos</div>
+            <input type="range" class="gfx-slider" id="customCubeScale" min="0.35" max="1.5" step="0.05" value="1">
+            <div class="gfx-slider-meta"><span id="customCubeScaleVal">1.00×</span></div>
+          </section>
+          <section class="gfx-section">
+            <div class="gfx-section__title">Ritmo de aparición</div>
+            <input type="range" class="gfx-slider" id="customSpawnRate" min="0.4" max="3" step="0.1" value="1">
+            <div class="gfx-slider-meta"><span id="customSpawnRateVal">1.00×</span></div>
+          </section>
+          <section class="gfx-section">
+            <div class="gfx-section__title">Puntos por nivel</div>
+            <input type="number" id="customLevelPts" class="term-input" value="100" min="50" step="50">
+          </section>
+          <section class="gfx-section">
+            <div class="gfx-section__title">Cubos</div>
+            <div class="gfx-row"><span class="gfx-row__label">Slow-mo</span>
+              <button type="button" class="gfx-switch" id="customAllowSlowmo"><span class="gfx-switch__track"><span class="gfx-switch__knob"></span></span></button></div>
+            <div class="gfx-row"><span class="gfx-row__label">Strong</span>
+              <button type="button" class="gfx-switch" id="customAllowStrong"><span class="gfx-switch__track"><span class="gfx-switch__knob"></span></span></button></div>
+            <div class="gfx-row"><span class="gfx-row__label">Red-cube</span>
+              <button type="button" class="gfx-switch" id="customAllowRed"><span class="gfx-switch__track"><span class="gfx-switch__knob"></span></span></button></div>
+          </section>
+          <section class="gfx-section">
+            <div class="gfx-section__title">Sistemas</div>
+            <div class="gfx-row"><span class="gfx-row__label">Tienda</span>
+              <button type="button" class="gfx-switch" id="customShop"><span class="gfx-switch__track"><span class="gfx-switch__knob"></span></span></button></div>
+            <div class="gfx-row"><span class="gfx-row__label">IA permitida</span>
+              <button type="button" class="gfx-switch" id="customAI"><span class="gfx-switch__track"><span class="gfx-switch__knob"></span></span></button></div>
+            <div class="gfx-row"><span class="gfx-row__label">Guardar progreso</span>
+              <button type="button" class="gfx-switch" id="customSave"><span class="gfx-switch__track"><span class="gfx-switch__knob"></span></span></button></div>
+          </section>
+          <button type="button" class="btn btn-primary custom-play-btn">Jugar Custom</button>
+        </div>
+      </div>
+    </div>
+
     <!-- SECRET TERMINAL -->
     <div class="menu menu--terminal">
       <div class="term-screen">
@@ -417,7 +468,7 @@
           <section class="gfx-section">
             <div class="gfx-section__title">Intensidad · Modo Básico</div>
             <div class="gfx-section__hint">Cuántos swipes simultáneos puede ejecutar</div>
-            <input type="range" class="gfx-slider" id="iaIntensity" min="1" max="3" step="1" value="1">
+            <input type="range" class="gfx-slider" id="iaIntensity" min="1" max="5" step="1" value="1">
             <div class="gfx-slider-meta"><span id="iaIntensityVal">Nivel 1 · 1 swipe</span></div>
           </section>
 
@@ -445,6 +496,26 @@
     </div>
   </div>
 
+  
+  <!-- Tutorial -->
+  <div id="tutorialOverlay" class="overlay-panel" style="display:none">
+    <div class="overlay-card">
+      <h2 id="tutorialTitle">Tutorial</h2>
+      <p id="tutorialBody"></p>
+      <button type="button" class="btn btn-primary" id="tutorialOkBtn">Entendido</button>
+    </div>
+  </div>
+
+  <!-- Update -->
+  <div id="updateOverlay" class="overlay-panel" style="display:none">
+    <div class="overlay-card">
+      <h2>Actualizar</h2>
+      <p id="updateStatus">…</p>
+      <div id="updateActions" class="overlay-actions"></div>
+    </div>
+  </div>
+
+  <script src="version.js"></script>
   <script src="main.js"></script>
   <script>
     if ('serviceWorker' in navigator) {

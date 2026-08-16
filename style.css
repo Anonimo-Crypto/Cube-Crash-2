@@ -1574,3 +1574,30 @@ body {
   opacity: 0.45;
   pointer-events: none;
 }
+
+.overlay-panel {
+  position: fixed; inset: 0; z-index: 80;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.72);
+  padding: 20px;
+}
+.overlay-card {
+  width: min(420px, 92vw);
+  background: linear-gradient(160deg, #151b28, #0c1018);
+  border: 1px solid rgba(120,170,255,0.25);
+  border-radius: 16px;
+  padding: 22px 20px;
+  color: #e8f0ff;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+}
+.overlay-card h2 { margin: 0 0 12px; font-size: 1.25rem; }
+.overlay-card p { margin: 0 0 16px; line-height: 1.45; opacity: 0.9; font-size: 0.95rem; }
+.overlay-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.menu--custom {
+  position: fixed !important; inset: 0 !important;
+  width: 100% !important; height: 100% !important;
+  max-width: none !important;
+  background: radial-gradient(ellipse at top, #0c1220 0%, #05070c 60%) !important;
+  z-index: 40; padding: 0 !important;
+}
+.menu--custom.active { display: flex !important; opacity: 1 !important; visibility: visible !important; }

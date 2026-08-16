@@ -72,3 +72,6 @@ v1.11 - FIX persistencia gráficos (clamp antes de definir rompía el load)
 v1.11.1 - Slow-mo solo afecta cubos; IA mantiene tiempo real de reacción/swipes
 v1.12 - Hitbox completa · strong 2 fases · Leyenda + Score shop · 6K/8K · fondo sólido
       - Red-cube · IA temporal niv.10 · permanente+Custom niv.100 · logros secretos
+v1.13 - Fix flash menú · Actualizar · tutoriales · Custom menu · IA 5 swipes
+      - Cubos Leyenda más pequeños · sombras oscuras · burst · logros Legend/Custom
+v1.13.1 - SW cache v1.13 robusto · música se detiene al cerrar/minimizar

@@ -56,7 +56,7 @@ const minPointerSpeed = 60;
 const hitDampening = 0.1;
 // Backboard receives shadows and is the farthest negative Z position of entities.
 const backboardZ = -400;
-const shadowColor = '#262e36';
+const shadowColor = '#0b0d10';
 // How much air drag is applied to standard objects
 const airDrag = 0.022;
 const gravity = 0.3;
@@ -131,6 +131,7 @@ const MENU_ACHIEVEMENTS = Symbol('MENU_ACHIEVEMENTS');
 const MENU_GRAPHICS = Symbol('MENU_GRAPHICS');
 const MENU_IA = Symbol('MENU_IA');
 const MENU_TERMINAL = Symbol('MENU_TERMINAL');
+const MENU_CUSTOM = Symbol('MENU_CUSTOM');
 
 
 
@@ -448,6 +449,8 @@ const ACHIEVEMENT_DEFS = [
 	{ id: 'level_50',      name: 'Pro',                   desc: 'Supera el nivel 50.',                reward: 80,  icon: '💎' },
 	{ id: 'level_70',      name: 'Maestro',               desc: 'Supera el nivel 70.',                reward: 100, icon: '🏆' },
 	{ id: 'level_100',     name: 'Legend',                desc: 'Supera el nivel 100.',               reward: 0,   icon: '🌟', special: true },
+	{ id: 'play_legend',   name: 'You are a Legend',      desc: 'Entra por primera vez al modo Leyenda.', reward: 25, icon: '👑' },
+	{ id: 'play_custom',   name: "I'm God",              desc: 'Entra por primera vez al modo Custom.', reward: 25, icon: '✨' },
 	{ id: 'legend_ia',     name: 'IA-Crash',              desc: 'Te mereces un descanso, pero solo de 15 minutos.', reward: 0, icon: '🤖', noReward: true, secret: true },
 	{ id: 'custom_gift',   name: 'A gift from me',        desc: 'Modo Custom desbloqueado.',          reward: 0,   icon: '🎁', noReward: true, secret: true },
 ];
@@ -542,6 +545,8 @@ function unlockModePlayAchievement(mode) {
 	else if (mode === GAME_MODE_RANKED) unlockAchievement('play_ranked');
 	else if (mode === GAME_MODE_HEARTS) unlockAchievement('play_hearts');
 	else if (mode === GAME_MODE_DESAFIANTE) unlockAchievement('play_desafiante');
+	else if (mode === GAME_MODE_LEGEND) unlockAchievement('play_legend');
+	else if (mode === GAME_MODE_CUSTOM) unlockAchievement('play_custom');
 }
 
 function claimAchievement(id) {
@@ -739,6 +744,7 @@ const MUSIC_TARGET_VOL = 0.35;
 function startMusic() {
 	musicShouldPlay = true;
 	if (!audioUnlocked.value) return;
+	if (document.hidden) return; // no reanudar en segundo plano
 	try {
 		const m = ensureMusic();
 		if (m.paused) {
@@ -752,9 +758,50 @@ function startMusic() {
 function pauseMusic() {
 	musicShouldPlay = false;
 	fadeMusicTo(0, 500, () => {
-		if (musicAudio && !musicShouldPlay) musicAudio.pause();
+		if (musicAudio && !musicShouldPlay) {
+			try { musicAudio.pause(); } catch (e) {}
+		}
 	});
 }
+
+/** Pausa inmediata (cerrar app / segundo plano) — evita que la música siga sonando */
+function freezeMusic() {
+	clearInterval(musicFadeTimer);
+	musicFadeTimer = null;
+	if (musicAudio) {
+		try {
+			musicAudio.pause();
+			// Algunos WebViews siguen el stream si no se corta el volumen
+			musicAudio.volume = 0;
+		} catch (e) {}
+	}
+}
+
+function stopMusicHard() {
+	musicShouldPlay = false;
+	freezeMusic();
+	if (musicAudio) {
+		try {
+			musicAudio.currentTime = 0;
+		} catch (e) {}
+	}
+}
+
+// Ciclo de vida: al salir / minimizar / cerrar pestaña
+document.addEventListener('visibilitychange', () => {
+	if (document.hidden) {
+		freezeMusic();
+	} else if (musicShouldPlay && audioUnlocked.value && appReady) {
+		startMusic();
+	}
+});
+window.addEventListener('pagehide', () => { freezeMusic(); });
+window.addEventListener('freeze', () => { freezeMusic(); }); // Page Lifecycle API
+window.addEventListener('beforeunload', () => { stopMusicHard(); });
+// APK / WebView a veces solo dispara blur
+window.addEventListener('blur', () => {
+	if (document.hidden) freezeMusic();
+});
 
 function fadeMusicTo(target, durationMs, onDone) {
 	if (!musicAudio) return;
@@ -1643,7 +1690,7 @@ const getTarget = (() => {
 		target.isResistant = isResistant;
 		target.barrierBroken = false;
 		target.isRedCube = !!(wireframe && color === RED);
-		target.cubeScale = isLegendGame() ? 0.62 : (isCustomGame() ? (customSettings.cubeScale || 1) : 1);
+		target.cubeScale = isLegendGame() ? 0.48 : (isCustomGame() ? (customSettings.cubeScale || 1) : 1);
 		updateTargetHealth(target, 0);
 		if (target.cubeScale && target.cubeScale !== 1 && !target._scaledOnce) {
 			const s = target.cubeScale;
@@ -2120,6 +2167,7 @@ const menuAchievementsNode = $('.menu--achievements');
 const menuGraphicsNode = $('.menu--graphics');
 const menuIANode = $('.menu--ia');
 const menuTerminalNode = $('.menu--terminal');
+const menuCustomNode = $('.menu--custom');
 
 const finalScoreLblNode = $('.final-score-lbl');
 const highScoreLblNode = $('.high-score-lbl');
@@ -2305,6 +2353,7 @@ function renderMenus() {
 	if (menuGraphicsNode) hideMenu(menuGraphicsNode);
 	if (menuIANode) hideMenu(menuIANode);
 	if (menuTerminalNode) hideMenu(menuTerminalNode);
+	if (menuCustomNode) hideMenu(menuCustomNode);
 
 	switch (state.menus.active) {
 		case MENU_MAIN:
@@ -2354,6 +2403,10 @@ function renderMenus() {
 		case MENU_TERMINAL:
 			showMenu(menuTerminalNode);
 			break;
+		case MENU_CUSTOM:
+			renderCustomMenu();
+			showMenu(menuCustomNode);
+			break;
 	}
 
 	setHudVisibility(appReady && !isMenuVisible());
@@ -2394,7 +2447,10 @@ document.querySelectorAll('.mode-card').forEach(card => {
 		else if (mode === 'hearts') gameMode = GAME_MODE_HEARTS;
 		else if (mode === 'desafiante') gameMode = GAME_MODE_DESAFIANTE;
 		else if (mode === 'legend') gameMode = GAME_MODE_LEGEND;
-		else if (mode === 'custom') gameMode = GAME_MODE_CUSTOM;
+		else if (mode === 'custom') {
+			setActiveMenu(MENU_CUSTOM);
+			return;
+		}
 		setGameMode(gameMode);
 		setActiveMenu(null);
 		resetGame();
@@ -2493,6 +2549,50 @@ handleClick($('.ach-back-btn'), () => setActiveMenu(previousMenuBeforeAchievemen
 
 // Graphics menu
 handleClick($('.graphics-btn'), () => setActiveMenu(MENU_GRAPHICS));
+
+handleClick($('.update-btn'), () => runUpdateFlow());
+handleClick($('.help-btn--pause'), () => {
+	showTutorial(modeKeyFromGameMode(state.game.mode), true);
+});
+document.getElementById('tutorialOkBtn')?.addEventListener('click', () => hideTutorial());
+handleClick($('.custom-back-btn'), () => setActiveMenu(MENU_MODES));
+handleClick($('.custom-play-btn'), () => {
+	saveCustomSettings();
+	setGameMode(GAME_MODE_CUSTOM);
+	setActiveMenu(null);
+	resetGame();
+});
+document.getElementById('customCubeScale')?.addEventListener('input', (e) => {
+	customSettings.cubeScale = clamp(parseFloat(e.target.value) || 1, 0.35, 1.5);
+	saveCustomSettings();
+	renderCustomMenu();
+});
+document.getElementById('customSpawnRate')?.addEventListener('input', (e) => {
+	customSettings.spawnRate = clamp(parseFloat(e.target.value) || 1, 0.4, 3);
+	saveCustomSettings();
+	renderCustomMenu();
+});
+document.getElementById('customLevelPts')?.addEventListener('change', (e) => {
+	customSettings.levelPoints = Math.max(50, parseInt(e.target.value, 10) || 100);
+	saveCustomSettings();
+});
+['customAllowSlowmo','customAllowStrong','customAllowRed','customShop','customAI','customSave'].forEach(id => {
+	const keyMap = {
+		customAllowSlowmo: 'allowSlowmo',
+		customAllowStrong: 'allowStrong',
+		customAllowRed: 'allowRed',
+		customShop: 'shopEnabled',
+		customAI: 'aiAllowed',
+		customSave: 'saveProgress'
+	};
+	document.getElementById(id)?.addEventListener('click', () => {
+		const k = keyMap[id];
+		customSettings[k] = !customSettings[k];
+		saveCustomSettings();
+		renderCustomMenu();
+	});
+});
+
 handleClick($('.gfx-back-btn'), () => setActiveMenu(MENU_MAIN));
 handleClick($('.terminal-btn'), () => setActiveMenu(MENU_TERMINAL));
 handleClick($('.terminal-back-btn'), () => setActiveMenu(MENU_MAIN));
@@ -2534,14 +2634,14 @@ document.querySelectorAll('.ia-mode-btn').forEach(btn => {
 	});
 });
 document.getElementById('iaIntensity')?.addEventListener('input', (e) => {
-	iaSettings.intensity = clamp(parseInt(e.target.value, 10) || 1, 1, 3);
+	iaSettings.intensity = clamp(parseInt(e.target.value, 10) || 1, 1, 5);
 	saveIASettings();
 	// Rebuild slots immediately so intensity applies mid-session
 	aiSlots.length = 0;
 	renderIAMenu();
 });
 document.getElementById('iaIntensity')?.addEventListener('change', (e) => {
-	iaSettings.intensity = clamp(parseInt(e.target.value, 10) || 1, 1, 3);
+	iaSettings.intensity = clamp(parseInt(e.target.value, 10) || 1, 1, 5);
 	saveIASettings();
 	aiSlots.length = 0;
 	renderIAMenu();
@@ -2721,6 +2821,14 @@ function resetGame() {
 	updateHudForMode();
 	checkLevelAchievements(true);
 	unlockModePlayAchievement(state.game.mode);
+	// Tutorial primera vez (después de preparar partida)
+	setTimeout(() => {
+		if (!maybeShowTutorialForCurrentMode()) {
+			// ya visto → jugar
+		} else {
+			// tutorial abierto; no arrancar lógica de menú
+		}
+	}, 80);
 }
 
 function pauseGame() {
@@ -2977,7 +3085,7 @@ function tick(width, height, simTime, simSpeed, lag, realDt = simTime) {
 					if (pointerSpeedScaled > minPointerSpeed) {
 						// Red-cube (Legend): romperlo = derrota instantánea
 						if (target.isRedCube) {
-							createBurst(target, forceMultiplier);
+							createBurst(target, Math.min(2.2, Math.max(0.9, forceMultiplier)));
 							sparkBurst(hitX, hitY, 10, sparkSpeed);
 							targets.splice(i, 1);
 							returnTarget(target);
@@ -3019,7 +3127,7 @@ function tick(width, height, simTime, simSpeed, lag, realDt = simTime) {
 									renderCoins();
 								}
 
-								createBurst(target, forceMultiplier);
+								createBurst(target, Math.min(2.2, Math.max(0.9, forceMultiplier)));
 								sparkBurst(hitX, hitY, 8, sparkSpeed);
 								// sin break.mp3 aquí (ya no es barrera)
 
@@ -3691,6 +3799,208 @@ renderLevelBar();
 // ========================
 
 
+
+// ========================
+// TUTORIALS
+// ========================
+const TUTORIAL_KEY = 'CubeCrash_TutorialsSeen';
+function loadTutorialsSeen() {
+	try { return JSON.parse(localStorage.getItem(TUTORIAL_KEY) || '{}'); } catch (e) { return {}; }
+}
+function markTutorialSeen(modeKey) {
+	const s = loadTutorialsSeen();
+	s[modeKey] = true;
+	localStorage.setItem(TUTORIAL_KEY, JSON.stringify(s));
+}
+function modeKeyFromGameMode(mode) {
+	if (mode === GAME_MODE_CASUAL) return 'casual';
+	if (mode === GAME_MODE_RANKED) return 'ranked';
+	if (mode === GAME_MODE_HEARTS) return 'hearts';
+	if (mode === GAME_MODE_DESAFIANTE) return 'desafiante';
+	if (mode === GAME_MODE_LEGEND) return 'legend';
+	if (mode === GAME_MODE_CUSTOM) return 'custom';
+	return 'ranked';
+}
+const TUTORIALS = {
+	ranked: {
+		title: 'Clásico',
+		body: 'Rompe cubos con swipes. Sube de nivel con puntos. Si un cubo cae, pierdes. Slow-mo y strong aparecen en niveles altos. Gana monedas y logros.'
+	},
+	casual: {
+		title: 'Casual',
+		body: 'Sin morir ni monedas ni logros. Solo cuenta cubos destruidos. Ideal para practicar el ritmo de los swipes.'
+	},
+	hearts: {
+		title: 'Hearts',
+		body: 'Tienes 3 vidas. Cada cubo que se cae (excepto slow-mo) resta una vida. Niveles y puntuación como en Clásico.'
+	},
+	desafiante: {
+		title: 'Desafiante',
+		body: 'Más cubos y más strong. Slow-mo más raro y débil. x2 monedas. El nivel no limita el tipo de cubos.'
+	},
+	legend: {
+		title: 'Leyenda',
+		body: 'Cubos pequeños y rápidos. Sin slow-mo. Muchos strong. Cuidado con el cubo rojo: romperlo = derrota. 1.000.000 pts por nivel. No se guarda el progreso al perder. Score de la tienda multiplica puntos.'
+	},
+	custom: {
+		title: 'Custom',
+		body: 'Tú defines las reglas antes de jugar. Ajusta tamaño, spawn, tipos de cubos, tienda e IA en el menú Custom.'
+	}
+};
+function showTutorial(modeKey, fromPause) {
+	const def = TUTORIALS[modeKey] || TUTORIALS.ranked;
+	const root = document.getElementById('tutorialOverlay');
+	const title = document.getElementById('tutorialTitle');
+	const body = document.getElementById('tutorialBody');
+	if (!root) return;
+	if (title) title.textContent = def.title;
+	if (body) body.textContent = def.body;
+	root.style.display = 'flex';
+	root.dataset.modeKey = modeKey;
+	root.dataset.fromPause = fromPause ? '1' : '0';
+}
+function hideTutorial() {
+	const root = document.getElementById('tutorialOverlay');
+	if (!root) return;
+	const modeKey = root.dataset.modeKey;
+	const fromPause = root.dataset.fromPause === '1';
+	root.style.display = 'none';
+	if (!fromPause && modeKey) markTutorialSeen(modeKey);
+	if (!fromPause) {
+		// continuar partida
+		gamePaused = false;
+		setActiveMenu(null);
+	} else {
+		setActiveMenu(MENU_PAUSE);
+	}
+}
+function maybeShowTutorialForCurrentMode() {
+	const key = modeKeyFromGameMode(state.game.mode);
+	const seen = loadTutorialsSeen();
+	if (!seen[key]) {
+		gamePaused = true;
+		showTutorial(key, false);
+		return true;
+	}
+	return false;
+}
+
+// ========================
+// UPDATE CHECK
+// ========================
+const UPDATE_URL = 'https://anonimo-crypto.github.io/Cube-Crash-2/';
+const REMOTE_VERSION_URL = UPDATE_URL + 'version.js';
+function getLocalVersion() {
+	return (window.CUBE_CRASH_VERSION && window.CUBE_CRASH_VERSION.version) || '0.0.0';
+}
+function parseVer(v) {
+	return String(v || '0').split('.').map(n => parseInt(n, 10) || 0);
+}
+function isRemoteNewer(remote, local) {
+	const a = parseVer(remote), b = parseVer(local);
+	for (let i = 0; i < Math.max(a.length, b.length); i++) {
+		const x = a[i] || 0, y = b[i] || 0;
+		if (x > y) return true;
+		if (x < y) return false;
+	}
+	return false;
+}
+function progressKeysKeep() {
+	const keep = [];
+	for (let i = 0; i < localStorage.length; i++) {
+		const k = localStorage.key(i);
+		if (k && k.startsWith('CubeCrash_')) keep.push(k);
+	}
+	return keep;
+}
+async function runUpdateFlow() {
+	const modal = document.getElementById('updateOverlay');
+	const status = document.getElementById('updateStatus');
+	const actions = document.getElementById('updateActions');
+	if (!modal) return;
+	modal.style.display = 'flex';
+	if (status) status.textContent = 'Comprobando conexión…';
+	if (actions) actions.innerHTML = '';
+
+	if (!navigator.onLine) {
+		if (status) status.textContent = 'Sin conexión. Activa Wi‑Fi o datos móviles e inténtalo de nuevo.';
+		if (actions) actions.innerHTML = '<button type="button" class="btn" id="updateCloseBtn">Cerrar</button>';
+		document.getElementById('updateCloseBtn')?.addEventListener('click', () => { modal.style.display = 'none'; });
+		return;
+	}
+
+	if (status) status.textContent = 'Leyendo versión remota…';
+	let remote = null;
+	try {
+		const res = await fetch(REMOTE_VERSION_URL + '?t=' + Date.now(), { cache: 'no-store' });
+		if (!res.ok) throw new Error('http');
+		const text = await res.text();
+		// eval-safe extract
+		const m = text.match(/version:\s*['"]([^'"]+)['"]/);
+		const s = text.match(/summary:\s*['"]([^'"]+)['"]/);
+		remote = { version: m ? m[1] : null, summary: s ? s[1] : '' };
+	} catch (e) {
+		if (status) status.textContent = 'No se pudo comprobar. Revisa la conexión e inténtalo otra vez.';
+		if (actions) actions.innerHTML = '<button type="button" class="btn" id="updateCloseBtn">Cerrar</button>';
+		document.getElementById('updateCloseBtn')?.addEventListener('click', () => { modal.style.display = 'none'; });
+		return;
+	}
+
+	const local = getLocalVersion();
+	if (!remote.version) {
+		if (status) status.textContent = 'Respuesta de versión no válida.';
+		if (actions) actions.innerHTML = '<button type="button" class="btn" id="updateCloseBtn">Cerrar</button>';
+		document.getElementById('updateCloseBtn')?.addEventListener('click', () => { modal.style.display = 'none'; });
+		return;
+	}
+
+	if (!isRemoteNewer(remote.version, local)) {
+		if (status) status.textContent = 'Ya estás al día (v' + local + ').';
+		if (actions) actions.innerHTML = '<button type="button" class="btn" id="updateCloseBtn">Cerrar</button>';
+		document.getElementById('updateCloseBtn')?.addEventListener('click', () => { modal.style.display = 'none'; });
+		return;
+	}
+
+	if (status) {
+		status.innerHTML = '<strong>Nueva versión v' + remote.version + '</strong><br><span style="opacity:0.85">' +
+			(remote.summary || 'Mejoras y correcciones.') + '</span><br><br>¿Actualizar? Se borra la caché de archivos; tu progreso se mantiene.';
+	}
+	if (actions) {
+		actions.innerHTML = '<button type="button" class="btn btn-primary" id="updateYesBtn">Actualizar</button>' +
+			'<button type="button" class="btn" id="updateCloseBtn">Cancelar</button>';
+	}
+	document.getElementById('updateCloseBtn')?.addEventListener('click', () => { modal.style.display = 'none'; });
+	document.getElementById('updateYesBtn')?.addEventListener('click', async () => {
+		if (status) status.textContent = 'Actualizando…';
+		// Snapshot progress
+		const snap = {};
+		progressKeysKeep().forEach(k => { snap[k] = localStorage.getItem(k); });
+		try {
+			if ('caches' in window) {
+				const keys = await caches.keys();
+				await Promise.all(keys.map(k => caches.delete(k)));
+			}
+			if (navigator.serviceWorker) {
+				const regs = await navigator.serviceWorker.getRegistrations();
+				await Promise.all(regs.map(r => r.unregister()));
+			}
+		} catch (e) {}
+		// Restore progress
+		Object.keys(snap).forEach(k => localStorage.setItem(k, snap[k]));
+		localStorage.setItem('CubeCrash_AssetsReady', '0'); // force re-download assets once
+		if (status) status.textContent = 'Listo. Cierra la app y ábrela de nuevo.';
+		if (actions) actions.innerHTML = '<button type="button" class="btn btn-primary" id="updateExitBtn">Cerrar app</button>';
+		document.getElementById('updateExitBtn')?.addEventListener('click', () => {
+			try {
+				if (navigator.app && navigator.app.exitApp) { navigator.app.exitApp(); return; }
+			} catch (e) {}
+			try { window.close(); } catch (e) {}
+			window.location.href = UPDATE_URL;
+		});
+	});
+}
+
+
 // ========================
 // LEGEND / CUSTOM / TIMED IA
 // ========================
@@ -3826,7 +4136,7 @@ function loadIASettings() {
 			return {
 				enabled: !!d.enabled,
 				mode: d.mode || 'basic',
-				intensity: clamp(parseInt(d.intensity, 10) || 1, 1, 3),
+				intensity: clamp(parseInt(d.intensity, 10) || 1, 1, 5),
 				reactionMs: clamp(parseInt(d.reactionMs, 10) || 380, 80, 2000),
 				reactionPreset: d.reactionPreset || 'normal'
 			};
@@ -3869,7 +4179,7 @@ function updateMainSecretButtons() {
 	const termBtn = document.querySelector('.terminal-btn');
 	const iaBtn = document.querySelector('.ia-btn');
 	if (termBtn) termBtn.style.display = (terminalUnlocked && !iaUnlocked) ? '' : 'none';
-	if (iaBtn) iaBtn.style.display = iaUnlocked ? '' : 'none';
+	if (iaBtn) iaBtn.style.display = (iaUnlocked || isIAEffectivelyUnlocked()) ? '' : 'none';
 }
 
 function renderIAMenu() {
@@ -3908,8 +4218,8 @@ function renderIAMenu() {
 	const intensVal = document.getElementById('iaIntensityVal');
 	if (intens) intens.value = String(iaSettings.intensity);
 	if (intensVal) {
-		const labels = { 1: 'Nivel 1 · 1 swipe', 2: 'Nivel 2 · 2 swipes', 3: 'Nivel 3 · 3 swipes' };
-		intensVal.textContent = labels[iaSettings.intensity] || '';
+		const n = clamp(iaSettings.intensity || 1, 1, 5);
+		intensVal.textContent = 'Nivel ' + n + ' · ' + n + ' swipe' + (n > 1 ? 's' : '') + ' simultáneos';
 	}
 
 	document.querySelectorAll('.ia-react-preset').forEach(btn => {
@@ -4041,7 +4351,7 @@ function tickAI(simTime, width, height, viewScale) {
 	if (iaSettings.mode !== 'basic') return;
 
 	const halfH = height / 2;
-	const slotsNeeded = clamp(Number(iaSettings.intensity) || 1, 1, 3);
+	const slotsNeeded = clamp(Number(iaSettings.intensity) || 1, 1, 5);
 
 	// N slots = N swipes simultáneos sobre cubos distintos
 	while (aiSlots.length < slotsNeeded) {
@@ -4064,8 +4374,10 @@ function tickAI(simTime, width, height, viewScale) {
 		}
 	}
 	available.sort((a, b) => {
-		// Preferir strong, luego más centrados
-		const sb = (b.isResistant ? 1 : 0) - (a.isResistant ? 1 : 0);
+		// Prioridad: más abajo (peligro), strong con barrera, luego cercanos
+		const danger = (b.y || 0) - (a.y || 0);
+		if (Math.abs(danger) > 30) return danger;
+		const sb = ((b.isResistant && !b.barrierBroken) ? 1 : 0) - ((a.isResistant && !a.barrierBroken) ? 1 : 0);
 		if (sb) return sb;
 		return (a.x * a.x + a.y * a.y) - (b.x * b.x + b.y * b.y);
 	});
@@ -4078,23 +4390,26 @@ function tickAI(simTime, width, height, viewScale) {
 		const t = slot.pending.target;
 		slot.pending = null;
 		if (t && targets.includes(t) && t.health > 0) {
-			const ang = Math.random() * Math.PI * 2;
-			const dist = 80 + Math.random() * 35;
+			const lead = Math.min(0.4, (iaSettings.reactionMs || 380) / 1800);
+			const px = t.x + (t.xD || 0) * lead * 20;
+			const py = t.y + (t.yD || 0) * lead * 20;
+			const ang = Math.atan2((t.yD || 1), (t.xD || 0.01)) + Math.PI * 0.5;
+			const dist = 65 + Math.random() * 28;
 			aiCreateTrail(
-				t.x + Math.cos(ang) * dist,
-				t.y + Math.sin(ang) * dist,
-				t.x - Math.cos(ang) * dist,
-				t.y - Math.sin(ang) * dist
+				px + Math.cos(ang) * dist,
+				py + Math.sin(ang) * dist,
+				px - Math.cos(ang) * dist,
+				py - Math.sin(ang) * dist
 			);
 			const alive = aiDestroyTarget(t);
 			if (alive) {
-				slot.pending = { target: t, timer: Math.max(80, iaSettings.reactionMs * 0.3) };
+				slot.pending = { target: t, timer: Math.max(70, iaSettings.reactionMs * 0.28) };
 				claimed.add(t);
 			} else {
-				slot.cooldown = 50 + randomInt(0, 30);
+				slot.cooldown = 40 + randomInt(0, 25);
 			}
 		} else {
-			slot.cooldown = 40;
+			slot.cooldown = 35;
 		}
 	}
 
@@ -4161,6 +4476,38 @@ function updateAIHudBadge() {
 		}
 	}
 }
+
+function renderCustomMenu() {
+	const map = {
+		customCubeScale: 'cubeScale',
+		customSpawnRate: 'spawnRate',
+		customAllowSlowmo: 'allowSlowmo',
+		customAllowStrong: 'allowStrong',
+		customAllowRed: 'allowRed',
+		customShop: 'shopEnabled',
+		customAI: 'aiAllowed',
+		customSave: 'saveProgress',
+		customLevelPts: 'levelPoints'
+	};
+	const scale = document.getElementById('customCubeScale');
+	if (scale) scale.value = customSettings.cubeScale;
+	const scaleV = document.getElementById('customCubeScaleVal');
+	if (scaleV) scaleV.textContent = (customSettings.cubeScale || 1).toFixed(2) + '×';
+	const spawn = document.getElementById('customSpawnRate');
+	if (spawn) spawn.value = customSettings.spawnRate;
+	const spawnV = document.getElementById('customSpawnRateVal');
+	if (spawnV) spawnV.textContent = (customSettings.spawnRate || 1).toFixed(2) + '×';
+	const pts = document.getElementById('customLevelPts');
+	if (pts) pts.value = customSettings.levelPoints;
+	['customAllowSlowmo','customAllowStrong','customAllowRed','customShop','customAI','customSave'].forEach(id => {
+		const el = document.getElementById(id);
+		if (!el) return;
+		const key = map[id];
+		el.classList.toggle('is-on', !!customSettings[key]);
+	});
+}
+
+
 function updateModeCardsVisibility() {
 	document.querySelectorAll('.mode-card[data-mode="legend"]').forEach(c => {
 		c.classList.toggle('mode-card--locked', !legendUnlocked);
@@ -4181,13 +4528,14 @@ function updateModeCardsVisibility() {
 // FIRST-RUN ASSET DOWNLOAD
 // ========================
 const ASSETS_READY_KEY = 'CubeCrash_AssetsReady';
-const GAME_CACHE = 'cube-crash-offline-v1.11';
+const GAME_CACHE = 'cube-crash-offline-v1.13';
 
 const DOWNLOAD_ASSETS = [
 	{ url: './index.html', label: 'index.html', approx: '8 KB' },
 	{ url: './main.js', label: 'main.js', approx: '85 KB' },
 	{ url: './style.css', label: 'style.css', approx: '16 KB' },
 	{ url: './manifest.json', label: 'manifest.json', approx: '1 KB' },
+	{ url: './version.js', label: 'version.js', approx: '1 KB' },
 	{ url: './192.png', label: 'icon 192.png', approx: '1 KB' },
 	{ url: './512.png', label: 'icon 512.png', approx: '3 KB' },
 	{ url: './data/images/coin.png', label: 'coin.png', approx: '2 KB' },
@@ -4493,9 +4841,7 @@ async function runFirstDownload() {
 
 	function finishSplash() {
 		unlockAudio();
-		appReady = true;
-
-		// Prepare music at 0 volume, then fade in for main menu
+		// NO poner appReady todavía: evita flash de HUD/nivel
 		try {
 			const m = ensureMusic();
 			m.volume = 0;
@@ -4503,14 +4849,20 @@ async function runFirstDownload() {
 
 		hideStage(tapStage);
 		splash.classList.add('is-done');
+		setHudVisibility(false);
 
 		setTimeout(() => {
 			splash.remove();
 			if (menuContainerNode) menuContainerNode.style.visibility = '';
 			updateMainSecretButtons();
-			setActiveMenu(MENU_MAIN);
-			startMusic(); // music on main menu, gradual fade-in
-		}, 500);
+			updateModeCardsVisibility();
+			// Primero menú principal, luego appReady
+			state.menus.active = MENU_MAIN;
+			renderMenus();
+			appReady = true;
+			setHudVisibility(false);
+			startMusic();
+		}, 400);
 	}
 
 	tapStage.addEventListener('pointerdown', (e) => {
