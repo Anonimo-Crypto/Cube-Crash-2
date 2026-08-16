@@ -198,12 +198,12 @@ function defaultGfxSettings() {
 	const cores = navigator.hardwareConcurrency || 4;
 	// Smart defaults for low-end
 	if (mem <= 2 || (cores <= 4 && mem <= 3)) {
-		return { scale: 0.75, shadows: false, detail: 'simple', particles: 40 };
+		return { scale: 0.75, shadows: false, detail: 'simple', particles: 40, orientation: 'auto' };
 	}
 	if (mem <= 4 || cores <= 6) {
-		return { scale: 1, shadows: true, detail: 'medium', particles: 70 };
+		return { scale: 1, shadows: true, detail: 'medium', particles: 70, orientation: 'auto' };
 	}
-	return { scale: 1.25, shadows: true, detail: 'advanced', particles: 100 };
+	return { scale: 1.25, shadows: true, detail: 'advanced', particles: 100, orientation: 'auto' };
 }
 function loadGfxSettings() {
 	// IMPORTANT: do not call clamp() here — it is defined later in the file.
@@ -219,11 +219,13 @@ function loadGfxSettings() {
 			if (!Number.isFinite(particles)) particles = 100;
 			particles = Math.min(100, Math.max(0, particles));
 			const detail = ['simple', 'medium', 'advanced'].includes(d.detail) ? d.detail : 'medium';
+			const orientation = ['auto', 'portrait', 'landscape'].includes(d.orientation) ? d.orientation : 'auto';
 			return {
 				scale,
 				shadows: d.shadows === true || d.shadows === 'true' || d.shadows === 1,
 				detail,
-				particles
+				particles,
+				orientation
 			};
 		}
 	} catch (e) {
@@ -232,13 +234,15 @@ function loadGfxSettings() {
 	return defaultGfxSettings();
 }
 const gfxSettings = loadGfxSettings();
+if (!gfxSettings.orientation) gfxSettings.orientation = 'auto';
 function saveGfxSettings() {
 	try {
 		const payload = {
 			scale: gfxSettings.scale,
 			shadows: !!gfxSettings.shadows,
 			detail: gfxSettings.detail,
-			particles: gfxSettings.particles
+			particles: gfxSettings.particles,
+			orientation: gfxSettings.orientation || 'auto'
 		};
 		localStorage.setItem(GFX_KEY, JSON.stringify(payload));
 	} catch (e) {
@@ -254,6 +258,74 @@ const gfx = {
 	collideEvery: 1,
 	maxSparks: 120
 };
+/** Detecta orientación real del dispositivo */
+function getDeviceOrientation() {
+	try {
+		if (screen.orientation && typeof screen.orientation.type === 'string') {
+			return screen.orientation.type.indexOf('landscape') === 0 ? 'landscape' : 'portrait';
+		}
+	} catch (e) {}
+	if (typeof window.orientation === 'number') {
+		return (Math.abs(window.orientation) === 90) ? 'landscape' : 'portrait';
+	}
+	return window.innerWidth >= window.innerHeight ? 'landscape' : 'portrait';
+}
+
+let lastKnownOrientation = null;
+let orientResizeTimer = null;
+
+function scheduleOrientResize() {
+	if (orientResizeTimer) clearTimeout(orientResizeTimer);
+	// Doble pase: al girar el layout a veces llega tarde en WebView/APK
+	orientResizeTimer = setTimeout(() => {
+		if (typeof window.__resizeCanvas === 'function') window.__resizeCanvas();
+		setTimeout(() => {
+			if (typeof window.__resizeCanvas === 'function') window.__resizeCanvas();
+		}, 180);
+	}, 40);
+}
+
+function onDeviceOrientationChange() {
+	const cur = getDeviceOrientation();
+	const changed = cur !== lastKnownOrientation;
+	lastKnownOrientation = cur;
+	scheduleOrientResize();
+	// Si el usuario eligió vertical/horizontal, reafirmar el lock tras el giro del SO
+	const mode = gfxSettings.orientation || 'auto';
+	if (mode !== 'auto') {
+		applyOrientationLock();
+	}
+	return changed;
+}
+
+async function applyOrientationLock() {
+	const mode = gfxSettings.orientation || 'auto';
+	try {
+		const so = (typeof screen !== 'undefined') ? (screen.orientation || screen.mozOrientation || screen.msOrientation) : null;
+		if (mode === 'auto') {
+			// Liberar bloqueo → el dispositivo gira libremente
+			try {
+				if (so && typeof so.unlock === 'function') so.unlock();
+				else if (screen.orientation && typeof screen.orientation.unlock === 'function') {
+					screen.orientation.unlock();
+				}
+			} catch (e) {}
+			scheduleOrientResize();
+			return;
+		}
+		const lockType = mode === 'landscape' ? 'landscape' : 'portrait';
+		if (so && typeof so.lock === 'function') {
+			await so.lock(lockType);
+		} else if (screen.orientation && typeof screen.orientation.lock === 'function') {
+			await screen.orientation.lock(lockType);
+		}
+		scheduleOrientResize();
+	} catch (e) {
+		console.warn('orientation lock', e);
+		scheduleOrientResize();
+	}
+}
+
 function applyGfxSettings() {
 	gfx.dprCap = gfxSettings.scale;
 	gfx.shadows = !!gfxSettings.shadows;
@@ -273,6 +345,7 @@ function applyGfxSettings() {
 	if (typeof window.__resizeCanvas === 'function') {
 		window.__resizeCanvas();
 	}
+	applyOrientationLock();
 }
 applyGfxSettings();
 
@@ -1691,13 +1764,13 @@ const getTarget = (() => {
 		target.barrierBroken = false;
 		target.isRedCube = !!(wireframe && color === RED);
 		target.cubeScale = isLegendGame() ? 0.48 : (isCustomGame() ? (customSettings.cubeScale || 1) : 1);
+		// Usar scale del Entity (no mutar vértices del modelo → evita glitch al romper)
+		const cs = target.cubeScale || 1;
+		target.scaleX = cs;
+		target.scaleY = cs;
+		target.scaleZ = cs;
+		target._scaledOnce = false;
 		updateTargetHealth(target, 0);
-		if (target.cubeScale && target.cubeScale !== 1 && !target._scaledOnce) {
-			const s = target.cubeScale;
-			target.vertices.forEach(v => { v.x *= s; v.y *= s; v.z *= s; });
-			if (target.shadowVertices) target.shadowVertices.forEach(v => { v.x *= s; v.y *= s; v.z *= s; });
-			target._scaledOnce = true;
-		}
 
 		const spinSpeeds = [
 			Math.random() * 0.1 - 0.05,
@@ -1737,18 +1810,12 @@ const updateTargetHealth = (target, healthDelta) => {
 
 
 const returnTarget = target => {
-	// Restaurar escala de pool (Leyenda/Custom)
-	if (target._scaledOnce && target.cubeScale && target.cubeScale !== 1) {
-		const inv = 1 / target.cubeScale;
-		target.vertices.forEach(v => { v.x *= inv; v.y *= inv; v.z *= inv; });
-		if (target.shadowVertices) target.shadowVertices.forEach(v => { v.x *= inv; v.y *= inv; v.z *= inv; });
-	}
-	target._scaledOnce = false;
 	target.cubeScale = 1;
 	target.barrierBroken = false;
 	target.isRedCube = false;
 	target.isResistant = false;
-	target.reset();
+	target._scaledOnce = false;
+	target.reset(); // scaleX/Y/Z = 1
 	const pool = target.wireframe ? targetWireframePool : targetPool;
 	pool.get(target.color).push(target);
 };
@@ -1806,19 +1873,20 @@ const createBurst = (() => {
 	}
 
 	return (target, force=1) => {
-		// Calculate fragment positions, and what would have been the previous positions
-		// when still a part of the larger target.
+		// Escala del cubo (Leyenda / Custom) — fragmentos alineados con el tamaño visual
+		const s = (target.cubeScale || target.scaleX || 1);
+		const forceSafe = Math.min(2.5, Math.max(0.7, force));
 		transformVertices(
 			basePositions, positions,
 			target.x, target.y, target.z,
 			target.rotateX, target.rotateY, target.rotateZ,
-			1, 1, 1
+			s, s, s
 		);
 		transformVertices(
 			basePositions, prevPositions,
 			target.x - target.xD, target.y - target.yD, target.z - target.zD,
 			target.rotateX - target.rotateXD, target.rotateY - target.rotateYD, target.rotateZ - target.rotateZD,
-			1, 1, 1
+			s, s, s
 		);
 
 		// Compute velocity of each fragment, based on previous positions.
@@ -1859,8 +1927,8 @@ const createBurst = (() => {
 			frag.rotateZ = target.rotateZ;
 
 
-			const burstSpeed = 2 * force;
-			const randSpeed = 2 * force;
+			const burstSpeed = 2 * forceSafe;
+			const randSpeed = 2 * forceSafe;
 			const rotateScale = 0.015;
 			frag.xD = velocity.x + (normal.x * burstSpeed) + (Math.random() * randSpeed);
 			frag.yD = velocity.y + (normal.y * burstSpeed) + (Math.random() * randSpeed);
@@ -1868,6 +1936,11 @@ const createBurst = (() => {
 			frag.rotateXD = frag.xD * rotateScale;
 			frag.rotateYD = frag.yD * rotateScale;
 			frag.rotateZD = frag.zD * rotateScale;
+			// Fragmentos del mismo tamaño relativo al cubo
+			frag.scaleX = s;
+			frag.scaleY = s;
+			frag.scaleZ = s;
+			frag.cubeScale = s;
 
 			frags.push(frag);
 		};
@@ -1876,6 +1949,7 @@ const createBurst = (() => {
 
 
 const returnFrag = frag => {
+	frag.cubeScale = 1;
 	frag.reset();
 	const pool = frag.wireframe ? fragWireframePool : fragPool;
 	pool.get(frag.color).push(frag);
@@ -2367,6 +2441,10 @@ function renderMenus() {
 			showMenu(menuModesNode);
 			break;
 		case MENU_PAUSE:
+			{
+				const cb = document.querySelector('.custom-btn--pause');
+				if (cb) cb.style.display = isCustomGame() ? '' : 'none';
+			}
 			showMenu(menuPauseNode);
 			break;
 		case MENU_SCORE:
@@ -2448,6 +2526,7 @@ document.querySelectorAll('.mode-card').forEach(card => {
 		else if (mode === 'desafiante') gameMode = GAME_MODE_DESAFIANTE;
 		else if (mode === 'legend') gameMode = GAME_MODE_LEGEND;
 		else if (mode === 'custom') {
+			previousMenuBeforeCustom = MENU_MODES;
 			setActiveMenu(MENU_CUSTOM);
 			return;
 		}
@@ -2554,13 +2633,37 @@ handleClick($('.update-btn'), () => runUpdateFlow());
 handleClick($('.help-btn--pause'), () => {
 	showTutorial(modeKeyFromGameMode(state.game.mode), true);
 });
+handleClick($('.custom-btn--pause'), () => {
+	if (!isCustomGame()) return;
+	previousMenuBeforeCustom = MENU_PAUSE;
+	setActiveMenu(MENU_CUSTOM);
+});
+
 document.getElementById('tutorialOkBtn')?.addEventListener('click', () => hideTutorial());
-handleClick($('.custom-back-btn'), () => setActiveMenu(MENU_MODES));
+handleClick($('.custom-back-btn'), () => {
+	if (previousMenuBeforeCustom === MENU_PAUSE) {
+		setActiveMenu(MENU_PAUSE);
+	} else {
+		setActiveMenu(MENU_MODES);
+	}
+});
 handleClick($('.custom-play-btn'), () => {
 	saveCustomSettings();
+	const fromPause = previousMenuBeforeCustom === MENU_PAUSE && isCustomGame();
 	setGameMode(GAME_MODE_CUSTOM);
-	setActiveMenu(null);
-	resetGame();
+	if (fromPause) {
+		// Reaplicar reglas mid-run sin reiniciar puntuación completa
+		resetAllTargets();
+		spawnTime = getSpawnDelay();
+		gamePaused = false;
+		setActiveMenu(null);
+		startMusic();
+		updateHudForMode();
+	} else {
+		setActiveMenu(null);
+		resetGame();
+	}
+	previousMenuBeforeCustom = MENU_MAIN;
 });
 document.getElementById('customCubeScale')?.addEventListener('input', (e) => {
 	customSettings.cubeScale = clamp(parseFloat(e.target.value) || 1, 0.35, 1.5);
@@ -2689,6 +2792,10 @@ function renderGraphicsMenu() {
 	if (slider) slider.value = String(gfxSettings.particles);
 	if (pctEl) pctEl.textContent = gfxSettings.particles + '%';
 	if (msgEl) msgEl.textContent = particleMsgFor(gfxSettings.particles);
+	// Orientation
+	document.querySelectorAll('.gfx-orient-btn').forEach(btn => {
+		btn.classList.toggle('is-active', btn.dataset.orient === (gfxSettings.orientation || 'auto'));
+	});
 }
 
 // Bind graphics controls once
@@ -2730,6 +2837,23 @@ document.getElementById('gfxParticleSlider')?.addEventListener('change', (e) => 
 	gfxSettings.particles = Math.min(100, Math.max(0, parseInt(e.target.value, 10) || 0));
 	saveGfxSettings();
 	applyGfxSettings();
+});
+document.getElementById('gfxOrientGrid')?.addEventListener('click', (e) => {
+	const btn = e.target.closest('.gfx-orient-btn');
+	if (!btn || !btn.dataset.orient) return;
+	gfxSettings.orientation = btn.dataset.orient;
+	saveGfxSettings();
+	applyGfxSettings();
+	renderGraphicsMenu();
+	try { playSfx('click', 0.4); } catch (err) {}
+});
+
+// Reintentar lock + resize al volver a primer plano (APK / TWA)
+document.addEventListener('visibilitychange', () => {
+	if (!document.hidden) {
+		applyOrientationLock();
+		scheduleOrientResize();
+	}
 });
 
 
@@ -3180,12 +3304,14 @@ function tick(width, height, simTime, simSpeed, lag, realDt = simTime) {
 	tick._colFrame++;
 	const aiLive = iaUnlocked && iaSettings.enabled && isInGame() && !isCasualGame();
 	const runCollisions = aiLive || (tick._colFrame % gfx.collideEvery) === 0;
-	const collideRadius = targetRadius * 1.85;
-	const collideRadiusSq = collideRadius * collideRadius;
 	if (runCollisions) for (let i = 0; i < targets.length; i++) {
 		const a = targets[i];
+		const ra = targetRadius * 1.85 * (a.cubeScale || 1);
 		for (let j = i + 1; j < targets.length; j++) {
 			const b = targets[j];
+			const rb = targetRadius * 1.85 * (b.cubeScale || 1);
+			const collideRadius = (ra + rb) * 0.5;
+			const collideRadiusSq = collideRadius * collideRadius;
 			const dx = b.x - a.x;
 			const dy = b.y - a.y;
 			const dz = b.z - a.z;
@@ -3497,7 +3623,7 @@ function draw(ctx, width, height, viewScale) {
 		const py = target.projected.y;
 		// Perspective scale similar to projection
 		const depth = cameraDistance / (cameraDistance - (target.z || 0));
-		const r = targetRadius * 2.05 * Math.max(0.35, depth);
+		const r = targetRadius * 2.05 * Math.max(0.35, depth) * (target.cubeScale || 1);
 
 		// Fade near camera like polys
 		let alpha = 1;
@@ -3632,6 +3758,28 @@ function setupCanvases() {
 
 	handleResize();
 	window.addEventListener('resize', handleResize);
+
+	// Detección de giro del dispositivo (auto / WebView / APK)
+	lastKnownOrientation = getDeviceOrientation();
+	window.addEventListener('orientationchange', () => onDeviceOrientationChange());
+	try {
+		if (screen.orientation && typeof screen.orientation.addEventListener === 'function') {
+			screen.orientation.addEventListener('change', () => onDeviceOrientationChange());
+		}
+	} catch (e) {}
+	// matchMedia orientation (más fiable en algunos Android)
+	try {
+		const mq = window.matchMedia('(orientation: portrait)');
+		const mqHandler = () => onDeviceOrientationChange();
+		if (mq.addEventListener) mq.addEventListener('change', mqHandler);
+		else if (mq.addListener) mq.addListener(mqHandler);
+	} catch (e) {}
+	// visualViewport (Chrome/Android al girar con barras del sistema)
+	try {
+		if (window.visualViewport) {
+			window.visualViewport.addEventListener('resize', () => scheduleOrientResize());
+		}
+	} catch (e) {}
 
 	// Animated gray gradient painted ON the canvas (reliable on APK / WebView)
 	function paintBackground(ts) {
@@ -4528,7 +4676,7 @@ function updateModeCardsVisibility() {
 // FIRST-RUN ASSET DOWNLOAD
 // ========================
 const ASSETS_READY_KEY = 'CubeCrash_AssetsReady';
-const GAME_CACHE = 'cube-crash-offline-v1.13';
+const GAME_CACHE = 'cube-crash-offline-v1.13.2';
 
 const DOWNLOAD_ASSETS = [
 	{ url: './index.html', label: 'index.html', approx: '8 KB' },

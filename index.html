@@ -55,7 +55,7 @@
     <div class="splash__stage splash__stage--logo" id="splashLogo">
       <img src="512.png" alt="Cube Crash" class="splash__logo">
       <div class="splash__title">CUBE CRASH</div>
-      <div class="splash__version">v1.13.1</div>
+      <div class="splash__version">v1.13.4</div>
     </div>
     <div class="splash__stage splash__stage--credits" id="splashCredits">
       <div class="splash__credit-block">
@@ -196,6 +196,7 @@
         <button type="button" class="btn shop-btn--pause">Tienda</button>
         <button type="button" class="btn achievements-btn--pause">Logros</button>
         <button type="button" class="btn help-btn--pause">Ayuda</button>
+        <button type="button" class="btn custom-btn--pause" style="display:none">Custom</button>
         <button type="button" class="btn menu-btn--pause">Salir al Menú</button>
       </div>
     </div>
@@ -336,6 +337,16 @@
             </div>
           </section>
 
+
+          <section class="gfx-section">
+            <div class="gfx-section__title">Orientación</div>
+            <div class="gfx-section__hint">Vertical, horizontal o automática</div>
+            <div class="gfx-res-grid" id="gfxOrientGrid">
+              <button type="button" class="gfx-res-btn gfx-orient-btn" data-orient="portrait">Vertical<span>Portrait</span></button>
+              <button type="button" class="gfx-res-btn gfx-orient-btn" data-orient="landscape">Horizontal<span>Landscape</span></button>
+              <button type="button" class="gfx-res-btn gfx-orient-btn" data-orient="auto">Automática<span>Libre</span></button>
+            </div>
+          </section>
           <section class="gfx-section">
             <div class="gfx-section__title">Partículas</div>
             <div class="gfx-section__hint">Cantidad de chispas y efectos al romper</div>

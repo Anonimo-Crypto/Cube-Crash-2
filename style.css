@@ -1601,3 +1601,46 @@ body {
   z-index: 40; padding: 0 !important;
 }
 .menu--custom.active { display: flex !important; opacity: 1 !important; visibility: visible !important; }
+
+.menu--custom .gfx-screen__body {
+  padding: 18px 20px 32px;
+  gap: 18px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  max-height: calc(100vh - 72px);
+}
+.menu--custom .gfx-section {
+  padding: 16px 16px 18px;
+  margin: 0;
+  border-radius: 14px;
+  background: rgba(12, 18, 32, 0.72);
+  border: 1px solid rgba(100, 150, 255, 0.12);
+}
+.menu--custom .gfx-section__title {
+  margin-bottom: 12px;
+  letter-spacing: 0.08em;
+}
+.menu--custom .gfx-row {
+  padding: 10px 0;
+  min-height: 44px;
+}
+.menu--custom .gfx-slider {
+  margin: 8px 0 4px;
+}
+.menu--custom .custom-play-btn {
+  margin-top: 12px;
+  margin-bottom: 24px;
+  min-height: 48px;
+  width: 100%;
+}
+.menu--custom .gfx-screen__top {
+  padding: 16px 18px 8px;
+}
+.menu--custom .term-input {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px 14px;
+  font-size: 1rem;
+}
