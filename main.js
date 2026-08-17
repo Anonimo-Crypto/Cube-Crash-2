@@ -666,8 +666,9 @@ const invariant = (condition, message) => {
 /////////
 
 const $ = selector => document.querySelector(selector);
-const handleClick = (element, handler) => element.addEventListener('click', handler);
+const handleClick = (element, handler) => { if (element) element.addEventListener('click', handler); };
 const handlePointerDown = (element, handler) => {
+	if (!element) return;
 	element.addEventListener('touchstart', handler);
 	element.addEventListener('mousedown', handler);
 };
@@ -2637,7 +2638,6 @@ document.getElementById('aiHudReact')?.addEventListener('input', (e) => {
 
 
 handleClick($('.update-btn'), () => runUpdateFlow());
-handleClick($('.help-btn--pause'), () => {});
 handleClick($('.custom-btn--pause'), () => {
 	if (!isCustomGame()) return;
 	previousMenuBeforeCustom = MENU_PAUSE;
