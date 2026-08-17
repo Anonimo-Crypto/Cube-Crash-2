@@ -1644,3 +1644,99 @@ body {
   padding: 12px 14px;
   font-size: 1rem;
 }
+
+/* Status bars: red-cube + slow-mo */
+.status-bars {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.redcube {
+  position: relative;
+  width: 100%;
+  opacity: 0;
+  transition: opacity 0.35s;
+  pointer-events: none;
+}
+.redcube::before {
+  content: 'RED-CUBE';
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin: 0 0 4px 10px;
+  color: #ff6b6b;
+  opacity: 0.9;
+}
+.redcube::after {
+  content: '';
+  display: block;
+  height: 6px;
+  background: rgba(0,0,0,0.35);
+}
+.redcube__bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 6px;
+  width: 100%;
+  background: linear-gradient(90deg, #ff1a1a, #ff6b6b, #ff3030);
+  box-shadow: 0 0 8px rgba(255, 40, 40, 0.55);
+  transform-origin: left;
+  transform: scaleX(0);
+}
+/* Slow-mo debajo; con slow activo el redcube queda visualmente arriba en el flex column */
+.status-bars .slowmo {
+  position: relative;
+  bottom: auto;
+  width: 100%;
+}
+.status-bars.has-slowmo .redcube {
+  order: -1;
+}
+.ai-badge {
+  cursor: pointer;
+  pointer-events: auto;
+}
+.ai-badge--timed {
+  border-color: rgba(255, 180, 60, 0.7);
+}
+.ai-hud-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.55);
+  padding: 20px;
+}
+.ai-hud-menu__card {
+  width: min(340px, 92vw);
+  background: linear-gradient(160deg, #121a14, #0a100c);
+  border: 1px solid rgba(34, 220, 90, 0.35);
+  border-radius: 16px;
+  padding: 18px 16px 16px;
+  color: #e8ffe8;
+}
+.ai-hud-menu__title {
+  font-weight: 700;
+  margin-bottom: 14px;
+  color: #22dc5a;
+}
+.ai-hud-menu__row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  font-size: 0.9rem;
+}
+.ai-hud-menu__row input[type=range] {
+  width: 100%;
+}

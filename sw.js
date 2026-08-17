@@ -1,5 +1,5 @@
 /* Cube Crash SW — offline completo + Range audio */
-const CACHE_NAME = 'cube-crash-offline-v1.13.4';
+const CACHE_NAME = 'cube-crash-offline-v1.14';
 
 const PRECACHE = [
   './',

@@ -55,7 +55,7 @@
     <div class="splash__stage splash__stage--logo" id="splashLogo">
       <img src="512.png" alt="Cube Crash" class="splash__logo">
       <div class="splash__title">CUBE CRASH</div>
-      <div class="splash__version">v1.13.4</div>
+      <div class="splash__version">v1.14</div>
     </div>
     <div class="splash__stage splash__stage--credits" id="splashCredits">
       <div class="splash__credit-block">
@@ -83,10 +83,24 @@
 
   <!-- HUD -->
   <div class="hud">
-    <div id="aiActiveBadge" class="ai-badge" style="display:none">
+    <div id="aiActiveBadge" class="ai-badge" style="display:none" title="Opciones IA">
       <img src="data/images/ai-crash.png" alt="IA">
-      <span>IA-Crash</span>
+      <span class="ai-badge__label">IA</span>
       <span id="aiBadgeTimer" class="ai-badge__timer"></span>
+    </div>
+    <div id="aiHudMenu" class="ai-hud-menu" style="display:none">
+      <div class="ai-hud-menu__card">
+        <div class="ai-hud-menu__title">IA-Crash</div>
+        <label class="ai-hud-menu__row">Swipes
+          <input type="range" id="aiHudIntensity" min="1" max="5" step="1" value="1">
+          <span id="aiHudIntensityVal">1</span>
+        </label>
+        <label class="ai-hud-menu__row">Tiempo de reacción
+          <input type="range" id="aiHudReact" min="80" max="2000" step="20" value="380">
+          <span id="aiHudReactVal">380 ms</span>
+        </label>
+        <button type="button" class="btn btn-primary" id="aiHudCloseBtn">Listo</button>
+      </div>
     </div>
 
     <div class="level-bar">
@@ -114,8 +128,13 @@
       </div>
     </div>
 
-    <div class="slowmo">
-      <div class="slowmo__bar"></div>
+    <div class="status-bars">
+      <div class="redcube" style="display:none">
+        <div class="redcube__bar"></div>
+      </div>
+      <div class="slowmo">
+        <div class="slowmo__bar"></div>
+      </div>
     </div>
   </div>
 
@@ -195,7 +214,6 @@
         <button type="button" class="btn btn-primary resume-btn">Reanudar</button>
         <button type="button" class="btn shop-btn--pause">Tienda</button>
         <button type="button" class="btn achievements-btn--pause">Logros</button>
-        <button type="button" class="btn help-btn--pause">Ayuda</button>
         <button type="button" class="btn custom-btn--pause" style="display:none">Custom</button>
         <button type="button" class="btn menu-btn--pause">Salir al Menú</button>
       </div>
@@ -311,8 +329,8 @@
             <div class="gfx-section__title">Sombras</div>
             <div class="gfx-section__hint">Proyección de sombras de cubos</div>
             <div class="gfx-row">
-              <span class="gfx-row__label" id="gfxShadowLabel">Activadas</span>
-              <button type="button" class="gfx-switch" id="gfxShadowSwitch" aria-pressed="true">
+              <span class="gfx-row__label" id="gfxShadowLabel">Desactivadas</span>
+              <button type="button" class="gfx-switch" id="gfxShadowSwitch" aria-pressed="false">
                 <span class="gfx-switch__track"><span class="gfx-switch__knob"></span></span>
               </button>
             </div>
@@ -334,17 +352,6 @@
                 <div class="gfx-detail-btn__name">Avanzado</div>
                 <div class="gfx-detail-btn__desc">Barrera con aristas · colisiones precisas · máximo detalle</div>
               </button>
-            </div>
-          </section>
-
-
-          <section class="gfx-section">
-            <div class="gfx-section__title">Orientación</div>
-            <div class="gfx-section__hint">Vertical, horizontal o automática</div>
-            <div class="gfx-res-grid" id="gfxOrientGrid">
-              <button type="button" class="gfx-res-btn gfx-orient-btn" data-orient="portrait">Vertical<span>Portrait</span></button>
-              <button type="button" class="gfx-res-btn gfx-orient-btn" data-orient="landscape">Horizontal<span>Landscape</span></button>
-              <button type="button" class="gfx-res-btn gfx-orient-btn" data-orient="auto">Automática<span>Libre</span></button>
             </div>
           </section>
           <section class="gfx-section">
@@ -380,9 +387,19 @@
             <div class="gfx-slider-meta"><span id="customCubeScaleVal">1.00×</span></div>
           </section>
           <section class="gfx-section">
-            <div class="gfx-section__title">Ritmo de aparición</div>
-            <input type="range" class="gfx-slider" id="customSpawnRate" min="0.4" max="3" step="0.1" value="1">
-            <div class="gfx-slider-meta"><span id="customSpawnRateVal">1.00×</span></div>
+            <div class="gfx-section__title">Ritmo por tipo (×0.25 – ×10)</div>
+            <div class="gfx-section__hint">Normal</div>
+            <input type="range" class="gfx-slider" id="customSpawnNormal" min="0.25" max="10" step="0.05" value="1">
+            <div class="gfx-slider-meta"><span id="customSpawnNormalVal">1.00×</span></div>
+            <div class="gfx-section__hint">Slow-mo</div>
+            <input type="range" class="gfx-slider" id="customSpawnSlowmo" min="0.25" max="10" step="0.05" value="1">
+            <div class="gfx-slider-meta"><span id="customSpawnSlowmoVal">1.00×</span></div>
+            <div class="gfx-section__hint">Strong</div>
+            <input type="range" class="gfx-slider" id="customSpawnStrong" min="0.25" max="10" step="0.05" value="1">
+            <div class="gfx-slider-meta"><span id="customSpawnStrongVal">1.00×</span></div>
+            <div class="gfx-section__hint">Red-cube (barra)</div>
+            <input type="range" class="gfx-slider" id="customSpawnRed" min="0.25" max="10" step="0.05" value="1">
+            <div class="gfx-slider-meta"><span id="customSpawnRedVal">1.00×</span></div>
           </section>
           <section class="gfx-section">
             <div class="gfx-section__title">Puntos por nivel</div>
@@ -390,6 +407,8 @@
           </section>
           <section class="gfx-section">
             <div class="gfx-section__title">Cubos</div>
+            <div class="gfx-row"><span class="gfx-row__label">Normal</span>
+              <button type="button" class="gfx-switch" id="customAllowNormal"><span class="gfx-switch__track"><span class="gfx-switch__knob"></span></span></button></div>
             <div class="gfx-row"><span class="gfx-row__label">Slow-mo</span>
               <button type="button" class="gfx-switch" id="customAllowSlowmo"><span class="gfx-switch__track"><span class="gfx-switch__knob"></span></span></button></div>
             <div class="gfx-row"><span class="gfx-row__label">Strong</span>
@@ -461,7 +480,7 @@
           <section class="gfx-section">
             <div class="gfx-section__title">Modo de IA</div>
             <div class="ia-mode-list">
-              <button type="button" class="ia-mode-btn is-active" data-mode="basic">
+              <button type="button" class="ia-mode-btn is-active" data-mode="basic" style="--ia-mode-color:#22dc5a">
                 <div class="gfx-detail-btn__name">Básico</div>
                 <div class="gfx-detail-btn__desc">Rompe los cubos que aparecen con swipes naranja visibles. Estable y predecible.</div>
               </button>
@@ -504,16 +523,6 @@
       </div>
     </div>
       </div>
-    </div>
-  </div>
-
-  
-  <!-- Tutorial -->
-  <div id="tutorialOverlay" class="overlay-panel" style="display:none">
-    <div class="overlay-card">
-      <h2 id="tutorialTitle">Tutorial</h2>
-      <p id="tutorialBody"></p>
-      <button type="button" class="btn btn-primary" id="tutorialOkBtn">Entendido</button>
     </div>
   </div>
 

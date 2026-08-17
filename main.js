@@ -56,7 +56,7 @@ const minPointerSpeed = 60;
 const hitDampening = 0.1;
 // Backboard receives shadows and is the farthest negative Z position of entities.
 const backboardZ = -400;
-const shadowColor = '#0b0d10';
+const shadowColor = '#050608';
 // How much air drag is applied to standard objects
 const airDrag = 0.022;
 const gravity = 0.3;
@@ -198,12 +198,12 @@ function defaultGfxSettings() {
 	const cores = navigator.hardwareConcurrency || 4;
 	// Smart defaults for low-end
 	if (mem <= 2 || (cores <= 4 && mem <= 3)) {
-		return { scale: 0.75, shadows: false, detail: 'simple', particles: 40, orientation: 'auto' };
+		return { scale: 0.75, shadows: false, detail: 'simple', particles: 40, orientation: 'portrait' };
 	}
 	if (mem <= 4 || cores <= 6) {
-		return { scale: 1, shadows: true, detail: 'medium', particles: 70, orientation: 'auto' };
+		return { scale: 1, shadows: false, detail: 'medium', particles: 70, orientation: 'portrait' };
 	}
-	return { scale: 1.25, shadows: true, detail: 'advanced', particles: 100, orientation: 'auto' };
+	return { scale: 1.25, shadows: false, detail: 'advanced', particles: 100, orientation: 'portrait' };
 }
 function loadGfxSettings() {
 	// IMPORTANT: do not call clamp() here — it is defined later in the file.
@@ -219,10 +219,10 @@ function loadGfxSettings() {
 			if (!Number.isFinite(particles)) particles = 100;
 			particles = Math.min(100, Math.max(0, particles));
 			const detail = ['simple', 'medium', 'advanced'].includes(d.detail) ? d.detail : 'medium';
-			const orientation = ['auto', 'portrait', 'landscape'].includes(d.orientation) ? d.orientation : 'auto';
+			const orientation = 'portrait'; // forzado vertical
 			return {
 				scale,
-				shadows: d.shadows === true || d.shadows === 'true' || d.shadows === 1,
+				shadows: d.shadows === true || d.shadows === 'true' || d.shadows === 1, // default off if missing
 				detail,
 				particles,
 				orientation
@@ -299,29 +299,17 @@ function onDeviceOrientationChange() {
 }
 
 async function applyOrientationLock() {
-	const mode = gfxSettings.orientation || 'auto';
+	// Orientación forzada a vertical (portrait)
+	gfxSettings.orientation = 'portrait';
 	try {
 		const so = (typeof screen !== 'undefined') ? (screen.orientation || screen.mozOrientation || screen.msOrientation) : null;
-		if (mode === 'auto') {
-			// Liberar bloqueo → el dispositivo gira libremente
-			try {
-				if (so && typeof so.unlock === 'function') so.unlock();
-				else if (screen.orientation && typeof screen.orientation.unlock === 'function') {
-					screen.orientation.unlock();
-				}
-			} catch (e) {}
-			scheduleOrientResize();
-			return;
-		}
-		const lockType = mode === 'landscape' ? 'landscape' : 'portrait';
 		if (so && typeof so.lock === 'function') {
-			await so.lock(lockType);
+			await so.lock('portrait');
 		} else if (screen.orientation && typeof screen.orientation.lock === 'function') {
-			await screen.orientation.lock(lockType);
+			await screen.orientation.lock('portrait');
 		}
 		scheduleOrientResize();
 	} catch (e) {
-		console.warn('orientation lock', e);
 		scheduleOrientResize();
 	}
 }
@@ -1658,6 +1646,7 @@ const getTarget = (() => {
 		return target;
 	}
 
+	window.__getTargetOfStyle = getTargetOfStyle;
 	return function getTarget() {
 		const level = state.game.level;
 		const desafiante = isDesafianteGame();
@@ -1717,7 +1706,7 @@ const getTarget = (() => {
 			}
 		}
 
-		// --- LEGEND ---
+		// --- LEGEND --- (red-cube sale por la barra de 15s, no al azar aquí)
 		if (isLegendGame()) {
 			color = pickOne(allColors);
 			wireframe = false;
@@ -1725,34 +1714,30 @@ const getTarget = (() => {
 			health = 1;
 			maxHealth = 1;
 			const onS = targets.length;
-			const redChance = clamp(0.06 - onS * 0.004, 0.02, 0.06);
 			const strongChance = clamp(0.22 - onS * 0.015, 0.08, 0.28);
-			const roll = Math.random();
-			if (roll < redChance) {
-				// Red-cube: wireframe rojo, romper = muerte
-				color = RED;
-				wireframe = true;
-			} else if (roll < redChance + strongChance) {
+			if (Math.random() < strongChance) {
 				isResistant = true;
 				maxHealth = randomInt(3, 5);
 				health = maxHealth;
 				color = pickOne(allColors);
 			}
 		} else if (isCustomGame()) {
+			// Custom: tipos se eligen por timers independientes (ver tick)
+			// getTarget() genérico solo spawnea normal si allowNormal
 			color = pickOne(allColors);
 			wireframe = false;
 			isResistant = false;
 			health = 1;
 			maxHealth = 1;
-			const onS = targets.length;
-			if (customSettings.allowRed && Math.random() < 0.05) {
-				color = RED; wireframe = true;
-			} else if (customSettings.allowSlowmo && !slowmoBlocked && Math.random() < slowChanceGeneral) {
-				color = BLUE; wireframe = true;
-			} else if (customSettings.allowStrong && Math.random() < 0.12) {
-				isResistant = true;
-				maxHealth = randomInt(3, 5);
-				health = maxHealth;
+			if (!customSettings.allowNormal) {
+				// fallback: si normal off, intentar strong/slowmo
+				if (customSettings.allowStrong) {
+					isResistant = true;
+					maxHealth = randomInt(3, 5);
+					health = maxHealth;
+				} else if (customSettings.allowSlowmo && !slowmoBlocked) {
+					color = BLUE; wireframe = true;
+				}
 			}
 		}
 
@@ -2218,8 +2203,10 @@ const slowmoNode = $('.slowmo');
 const slowmoBarNode = $('.slowmo__bar');
 
 function renderSlowmoStatus(percentRemaining) {
-	slowmoNode.style.opacity = percentRemaining === 0 ? 0 : 1;
-	slowmoBarNode.style.transform = `scaleX(${percentRemaining.toFixed(3)})`;
+	if (slowmoNode) slowmoNode.style.opacity = percentRemaining === 0 ? 0 : 1;
+	if (slowmoBarNode) slowmoBarNode.style.transform = `scaleX(${percentRemaining.toFixed(3)})`;
+	const wrap = document.querySelector('.status-bars');
+	if (wrap) wrap.classList.toggle('has-slowmo', percentRemaining > 0);
 }
 
 
@@ -2356,7 +2343,7 @@ function renderAchievementsList() {
 	list.innerHTML = '';
 	ACHIEVEMENT_DEFS.forEach(def => {
 		const data = state.achievements[def.id] || { unlocked: false, claimed: false };
-		if (def.secret && !data.unlocked) return; // secretos ocultos hasta desbloquear
+		// secretos visibles con descripción ??? hasta desbloquear
 		const item = document.createElement('div');
 		item.className = 'ach-item';
 		if (!achievementsViewOnly && data.unlocked && !data.claimed && !def.special && !def.noReward && def.reward) {
@@ -2398,7 +2385,7 @@ function renderAchievementsList() {
 			<div class="ach-item__icon">${data.unlocked ? def.icon : '🔒'}</div>
 			<div class="ach-item__body">
 				<div class="ach-item__name">${def.name}</div>
-				<div class="ach-item__desc">${def.desc}</div>
+				<div class="ach-item__desc">${(def.secret && !data.unlocked) ? '???' : def.desc}</div>
 				${progressHtml}
 			</div>
 			${rewardHtml}
@@ -2628,11 +2615,29 @@ handleClick($('.ach-back-btn'), () => setActiveMenu(previousMenuBeforeAchievemen
 
 // Graphics menu
 handleClick($('.graphics-btn'), () => setActiveMenu(MENU_GRAPHICS));
+document.getElementById('aiActiveBadge')?.addEventListener('click', (e) => {
+	e.preventDefault();
+	e.stopPropagation();
+	openAIHudMenu();
+});
+document.getElementById('aiHudCloseBtn')?.addEventListener('click', () => closeAIHudMenu());
+document.getElementById('aiHudIntensity')?.addEventListener('input', (e) => {
+	iaSettings.intensity = clamp(parseInt(e.target.value, 10) || 1, 1, 5);
+	const v = document.getElementById('aiHudIntensityVal');
+	if (v) v.textContent = String(iaSettings.intensity);
+	saveIASettings();
+	aiSlots.length = 0;
+});
+document.getElementById('aiHudReact')?.addEventListener('input', (e) => {
+	iaSettings.reactionMs = clamp(parseInt(e.target.value, 10) || 380, 80, 2000);
+	const v = document.getElementById('aiHudReactVal');
+	if (v) v.textContent = iaSettings.reactionMs + ' ms';
+	saveIASettings();
+});
+
 
 handleClick($('.update-btn'), () => runUpdateFlow());
-handleClick($('.help-btn--pause'), () => {
-	showTutorial(modeKeyFromGameMode(state.game.mode), true);
-});
+handleClick($('.help-btn--pause'), () => {});
 handleClick($('.custom-btn--pause'), () => {
 	if (!isCustomGame()) return;
 	previousMenuBeforeCustom = MENU_PAUSE;
@@ -2670,17 +2675,21 @@ document.getElementById('customCubeScale')?.addEventListener('input', (e) => {
 	saveCustomSettings();
 	renderCustomMenu();
 });
-document.getElementById('customSpawnRate')?.addEventListener('input', (e) => {
-	customSettings.spawnRate = clamp(parseFloat(e.target.value) || 1, 0.4, 3);
-	saveCustomSettings();
-	renderCustomMenu();
+['customSpawnNormal','customSpawnSlowmo','customSpawnStrong','customSpawnRed'].forEach(id => {
+	const keyMap = { customSpawnNormal:'spawnNormal', customSpawnSlowmo:'spawnSlowmo', customSpawnStrong:'spawnStrong', customSpawnRed:'spawnRed' };
+	document.getElementById(id)?.addEventListener('input', (e) => {
+		customSettings[keyMap[id]] = clamp(parseFloat(e.target.value) || 1, 0.25, 10);
+		saveCustomSettings();
+		renderCustomMenu();
+	});
 });
 document.getElementById('customLevelPts')?.addEventListener('change', (e) => {
 	customSettings.levelPoints = Math.max(50, parseInt(e.target.value, 10) || 100);
 	saveCustomSettings();
 });
-['customAllowSlowmo','customAllowStrong','customAllowRed','customShop','customAI','customSave'].forEach(id => {
+['customAllowNormal','customAllowSlowmo','customAllowStrong','customAllowRed','customShop','customAI','customSave'].forEach(id => {
 	const keyMap = {
+		customAllowNormal: 'allowNormal',
 		customAllowSlowmo: 'allowSlowmo',
 		customAllowStrong: 'allowStrong',
 		customAllowRed: 'allowRed',
@@ -2792,10 +2801,6 @@ function renderGraphicsMenu() {
 	if (slider) slider.value = String(gfxSettings.particles);
 	if (pctEl) pctEl.textContent = gfxSettings.particles + '%';
 	if (msgEl) msgEl.textContent = particleMsgFor(gfxSettings.particles);
-	// Orientation
-	document.querySelectorAll('.gfx-orient-btn').forEach(btn => {
-		btn.classList.toggle('is-active', btn.dataset.orient === (gfxSettings.orientation || 'auto'));
-	});
 }
 
 // Bind graphics controls once
@@ -2837,15 +2842,6 @@ document.getElementById('gfxParticleSlider')?.addEventListener('change', (e) => 
 	gfxSettings.particles = Math.min(100, Math.max(0, parseInt(e.target.value, 10) || 0));
 	saveGfxSettings();
 	applyGfxSettings();
-});
-document.getElementById('gfxOrientGrid')?.addEventListener('click', (e) => {
-	const btn = e.target.closest('.gfx-orient-btn');
-	if (!btn || !btn.dataset.orient) return;
-	gfxSettings.orientation = btn.dataset.orient;
-	saveGfxSettings();
-	applyGfxSettings();
-	renderGraphicsMenu();
-	try { playSfx('click', 0.4); } catch (err) {}
 });
 
 // Reintentar lock + resize al volver a primer plano (APK / TWA)
@@ -2945,14 +2941,7 @@ function resetGame() {
 	updateHudForMode();
 	checkLevelAchievements(true);
 	unlockModePlayAchievement(state.game.mode);
-	// Tutorial primera vez (después de preparar partida)
-	setTimeout(() => {
-		if (!maybeShowTutorialForCurrentMode()) {
-			// ya visto → jugar
-		} else {
-			// tutorial abierto; no arrancar lógica de menú
-		}
-	}, 80);
+	try { resetRedCubeBar(); } catch (e) {}
 }
 
 function pauseGame() {
@@ -3013,6 +3002,77 @@ let slowmoRemaining = 0;
 let spawnExtra = 0;
 const spawnExtraDelay = 300;
 let targetSpeed = 1;
+
+// Red-cube bar (15s → aparece un red-cube). Visible siempre en modos con red-cubes.
+const RED_CUBE_BAR_MS = 15000;
+let redCubeBarMs = 0;
+function modeHasRedCubes() {
+	if (isLegendGame()) return true;
+	if (isCustomGame() && customSettings.allowRed) return true;
+	return false;
+}
+function getRedCubeInterval() {
+	if (isCustomGame()) {
+		const rate = Math.min(10, Math.max(0.25, Number(customSettings.spawnRed) || 1));
+		return RED_CUBE_BAR_MS / rate;
+	}
+	return RED_CUBE_BAR_MS;
+}
+function resetRedCubeBar() {
+	redCubeBarMs = 0;
+	renderRedCubeBar();
+}
+function renderRedCubeBar() {
+	const node = document.querySelector('.redcube');
+	const bar = document.querySelector('.redcube__bar');
+	const wrap = document.querySelector('.status-bars');
+	if (!node || !bar) return;
+	const show = typeof isInGame === 'function' && isInGame() && modeHasRedCubes();
+	node.style.display = show ? '' : 'none';
+	node.style.opacity = show ? '1' : '0';
+	const interval = getRedCubeInterval();
+	const pct = interval > 0 ? Math.min(1, redCubeBarMs / interval) : 0;
+	bar.style.transform = 'scaleX(' + pct.toFixed(3) + ')';
+	if (wrap) wrap.classList.toggle('has-slowmo', slowmoRemaining > 0);
+}
+function tickRedCubeBar(dt) {
+	if (!isInGame() || !modeHasRedCubes()) {
+		renderRedCubeBar();
+		return;
+	}
+	redCubeBarMs += dt;
+	const interval = getRedCubeInterval();
+	if (redCubeBarMs >= interval) {
+		redCubeBarMs = 0;
+		spawnRedCubeNow();
+	}
+	renderRedCubeBar();
+}
+function spawnRedCubeNow() {
+	try {
+		const fn = window.__getTargetOfStyle;
+		if (!fn) return;
+		const target = fn(RED, true);
+		target.hit = false;
+		target.maxHealth = 1;
+		target.health = 1;
+		target.isResistant = false;
+		target.barrierBroken = false;
+		target.isRedCube = true;
+		const cs = isLegendGame() ? 0.48 : (isCustomGame() ? (customSettings.cubeScale || 1) : 1);
+		target.cubeScale = cs;
+		target.scaleX = cs; target.scaleY = cs; target.scaleZ = cs;
+		const spawnRadius = Math.min(450, 400);
+		target.x = (Math.random() * spawnRadius * 2 - spawnRadius);
+		target.y = 600;
+		target.z = (Math.random() * 40 - 20);
+		target.xD = Math.random() * (target.x * -2 / 120);
+		target.yD = -20;
+		target.aiAge = 0;
+		updateTargetHealth(target, 0);
+		targets.push(target);
+	} catch (e) { console.warn('spawn red', e); }
+}
 
 
 function tick(width, height, simTime, simSpeed, lag, realDt = simTime) {
@@ -3088,23 +3148,72 @@ function tick(width, height, simTime, simSpeed, lag, realDt = simTime) {
 	PERF_START('entities');
 
 	// Spawn targets
-	spawnTime -= simTime;
-	if (spawnTime <= 0) {
-		if (spawnExtra > 0) {
-			spawnExtra--;
-			spawnTime = spawnExtraDelay;
-		} else {
-			spawnTime = getSpawnDelay();
-		}
-		const target = getTarget();
+	const placeSpawn = (target) => {
 		const spawnRadius = Math.min(centerX * 0.8, maxSpawnX);
 		target.x = (Math.random() * spawnRadius * 2 - spawnRadius);
 		target.y = centerY + targetHitRadius * 2;
 		target.z = (Math.random() * targetRadius*2 - targetRadius);
 		target.xD = Math.random() * (target.x * -2 / 120);
 		target.yD = -20;
-		target.aiAge = 0; // tiempo en pantalla para la IA
+		target.aiAge = 0;
 		targets.push(target);
+	};
+
+	if (isCustomGame()) {
+		// Timers independientes por tipo (rate x0.25–x10)
+		if (!tick._cTimers) tick._cTimers = { normal: 0, slowmo: 0, strong: 0 };
+		const t = tick._cTimers;
+		const delayOf = (rate) => Math.max(70, 1400 / clamp(Number(rate) || 1, 0.25, 10));
+		const tryType = (key, allowed, makeFn) => {
+			if (!allowed) return;
+			t[key] -= simTime;
+			if (t[key] <= 0) {
+				t[key] = delayOf(customSettings[key === 'normal' ? 'spawnNormal' : key === 'slowmo' ? 'spawnSlowmo' : 'spawnStrong']);
+				const tgt = makeFn();
+				if (tgt) placeSpawn(tgt);
+			}
+		};
+		tryType('normal', customSettings.allowNormal !== false, () => {
+			const target = window.__getTargetOfStyle(pickOne(allColors), false);
+			target.hit = false; target.maxHealth = 1; target.health = 1;
+			target.isResistant = false; target.barrierBroken = false; target.isRedCube = false;
+			const cs = customSettings.cubeScale || 1;
+			target.cubeScale = cs; target.scaleX = target.scaleY = target.scaleZ = cs;
+			updateTargetHealth(target, 0);
+			return target;
+		});
+		tryType('slowmo', !!customSettings.allowSlowmo && !targets.some(x => x.wireframe) && slowmoRemaining <= 0, () => {
+			const target = window.__getTargetOfStyle(BLUE, true);
+			target.hit = false; target.maxHealth = 1; target.health = 1;
+			target.isResistant = false; target.barrierBroken = false; target.isRedCube = false;
+			const cs = customSettings.cubeScale || 1;
+			target.cubeScale = cs; target.scaleX = target.scaleY = target.scaleZ = cs;
+			updateTargetHealth(target, 0);
+			return target;
+		});
+		tryType('strong', !!customSettings.allowStrong, () => {
+			const target = window.__getTargetOfStyle(pickOne(allColors), false);
+			target.hit = false;
+			target.maxHealth = randomInt(3, 5); target.health = target.maxHealth;
+			target.isResistant = true; target.barrierBroken = false; target.isRedCube = false;
+			const cs = customSettings.cubeScale || 1;
+			target.cubeScale = cs; target.scaleX = target.scaleY = target.scaleZ = cs;
+			updateTargetHealth(target, 0);
+			return target;
+		});
+		// red-cube: solo por barra (tickRedCubeBar)
+	} else {
+		spawnTime -= simTime;
+		if (spawnTime <= 0) {
+			if (spawnExtra > 0) {
+				spawnExtra--;
+				spawnTime = spawnExtraDelay;
+			} else {
+				spawnTime = getSpawnDelay();
+			}
+			const target = getTarget();
+			placeSpawn(target);
+		}
 	}
 
 	// Animate targets and remove when offscreen
@@ -3472,6 +3581,7 @@ function tick(width, height, simTime, simSpeed, lag, realDt = simTime) {
 	// IA-Crash auto-play (scene coords match projected targets)
 	// IA usa tiempo real: slow-mo solo frena cubos/física, no los swipes de la IA
 	try { tickAI(realDt, width, height, 1); } catch (e) {}
+	try { tickRedCubeBar(realDt); } catch (e) {}
 
 	PERF_END('3D');
 
@@ -4023,14 +4133,7 @@ function hideTutorial() {
 	}
 }
 function maybeShowTutorialForCurrentMode() {
-	const key = modeKeyFromGameMode(state.game.mode);
-	const seen = loadTutorialsSeen();
-	if (!seen[key]) {
-		gamePaused = true;
-		showTutorial(key, false);
-		return true;
-	}
-	return false;
+	return false; // tutoriales eliminados
 }
 
 // ========================
@@ -4163,6 +4266,11 @@ function defaultCustomSettings() {
 	return {
 		cubeScale: 1,
 		spawnRate: 1,
+		spawnNormal: 1,
+		spawnSlowmo: 1,
+		spawnStrong: 1,
+		spawnRed: 1,
+		allowNormal: true,
 		allowSlowmo: true,
 		allowStrong: true,
 		allowRed: false,
@@ -4480,7 +4588,7 @@ function aiCreateTrail(fromX, fromY, toX, toY) {
 			life: 320 - i * 14
 		});
 	}
-	aiTrails.push({ points: pts, color: 'rgba(255, 140, 40, 0.9)' });
+	aiTrails.push({ points: pts, color: 'rgba(34, 220, 90, 0.95)' }); // verde = modo Básico
 }
 
 function tickAI(simTime, width, height, viewScale) {
@@ -4605,53 +4713,91 @@ function drawAITrails(ctx) {
 	ctx.globalAlpha = 1;
 }
 
+function openAIHudMenu() {
+	if (!isInGame() || !isIAEffectivelyUnlocked()) return;
+	const panel = document.getElementById('aiHudMenu');
+	if (!panel) return;
+	panel.style.display = 'flex';
+	gamePaused = true;
+	const intens = document.getElementById('aiHudIntensity');
+	const intensVal = document.getElementById('aiHudIntensityVal');
+	const react = document.getElementById('aiHudReact');
+	const reactVal = document.getElementById('aiHudReactVal');
+	if (intens) intens.value = String(iaSettings.intensity || 1);
+	if (intensVal) intensVal.textContent = String(iaSettings.intensity || 1);
+	if (react) react.value = String(iaSettings.reactionMs || 380);
+	if (reactVal) reactVal.textContent = (iaSettings.reactionMs || 380) + ' ms';
+}
+function closeAIHudMenu() {
+	const panel = document.getElementById('aiHudMenu');
+	if (panel) panel.style.display = 'none';
+	if (state.menus.active === null) gamePaused = false;
+}
 function updateAIHudBadge() {
 	const badge = document.getElementById('aiActiveBadge');
 	if (!badge) return;
 	const active = isIAEffectivelyUnlocked() && iaSettings.enabled && isInGame() && !isCasualGame();
 	badge.style.display = active ? 'flex' : 'none';
+	badge.classList.toggle('ai-badge--timed', !iaUnlocked && isIAEffectivelyUnlocked());
 	const timerEl = document.getElementById('aiBadgeTimer');
+	const labelEl = badge.querySelector('.ai-badge__label');
 	if (timerEl) {
 		const rem = getIARemainingMs();
-		if (rem == null) {
-			timerEl.textContent = '∞';
+		if (iaUnlocked || rem == null) {
+			// permanente: solo icono, sin ∞
+			timerEl.textContent = '';
+			timerEl.style.display = 'none';
+			if (labelEl) labelEl.style.display = 'none';
 		} else if (rem > 0) {
 			const m = Math.floor(rem / 60000);
 			const s = Math.floor((rem % 60000) / 1000);
 			timerEl.textContent = m + ':' + String(s).padStart(2, '0');
+			timerEl.style.display = '';
+			if (labelEl) labelEl.style.display = '';
 		} else {
 			timerEl.textContent = '';
+			timerEl.style.display = 'none';
 		}
 	}
 }
 
 function renderCustomMenu() {
-	const map = {
-		customCubeScale: 'cubeScale',
-		customSpawnRate: 'spawnRate',
+	const scale = document.getElementById('customCubeScale');
+	if (scale) scale.value = customSettings.cubeScale;
+	const scaleV = document.getElementById('customCubeScaleVal');
+	if (scaleV) scaleV.textContent = (customSettings.cubeScale || 1).toFixed(2) + '×';
+	const pts = document.getElementById('customLevelPts');
+	if (pts) pts.value = customSettings.levelPoints;
+	const rateMap = {
+		customSpawnNormal: 'spawnNormal',
+		customSpawnSlowmo: 'spawnSlowmo',
+		customSpawnStrong: 'spawnStrong',
+		customSpawnRed: 'spawnRed'
+	};
+	Object.keys(rateMap).forEach(id => {
+		const el = document.getElementById(id);
+		const key = rateMap[id];
+		if (el) el.value = customSettings[key] || 1;
+		const val = document.getElementById(id + 'Val');
+		if (val) val.textContent = (Number(customSettings[key]) || 1).toFixed(2) + '×';
+	});
+	const toggles = {
+		customAllowNormal: 'allowNormal',
 		customAllowSlowmo: 'allowSlowmo',
 		customAllowStrong: 'allowStrong',
 		customAllowRed: 'allowRed',
 		customShop: 'shopEnabled',
 		customAI: 'aiAllowed',
-		customSave: 'saveProgress',
-		customLevelPts: 'levelPoints'
+		customSave: 'saveProgress'
 	};
-	const scale = document.getElementById('customCubeScale');
-	if (scale) scale.value = customSettings.cubeScale;
-	const scaleV = document.getElementById('customCubeScaleVal');
-	if (scaleV) scaleV.textContent = (customSettings.cubeScale || 1).toFixed(2) + '×';
-	const spawn = document.getElementById('customSpawnRate');
-	if (spawn) spawn.value = customSettings.spawnRate;
-	const spawnV = document.getElementById('customSpawnRateVal');
-	if (spawnV) spawnV.textContent = (customSettings.spawnRate || 1).toFixed(2) + '×';
-	const pts = document.getElementById('customLevelPts');
-	if (pts) pts.value = customSettings.levelPoints;
-	['customAllowSlowmo','customAllowStrong','customAllowRed','customShop','customAI','customSave'].forEach(id => {
+	Object.keys(toggles).forEach(id => {
 		const el = document.getElementById(id);
 		if (!el) return;
-		const key = map[id];
-		el.classList.toggle('is-on', !!customSettings[key]);
+		const on = customSettings[toggles[id]] !== false && !!customSettings[toggles[id]] || (toggles[id] === 'allowNormal' && customSettings.allowNormal !== false);
+		const key = toggles[id];
+		let isOn = !!customSettings[key];
+		if (key === 'allowNormal' && customSettings.allowNormal === undefined) isOn = true;
+		el.classList.toggle('is-on', isOn);
 	});
 }
 

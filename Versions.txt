@@ -78,3 +78,5 @@ v1.13.1 - SW cache v1.13 robusto · música se detiene al cerrar/minimizar
 v1.13.2 - Fix glitch burst con scale · Custom desde pausa · menú Custom menos apretado
 v1.13.3 - Orientación: vertical, horizontal, automática (Gráficos)
 v1.13.4 - Detección automática de giro del dispositivo + resize fiable
+v1.14 - Barra Red-cube 15s · Custom rates por tipo · menú IA in-game
+      - Secretos con ??? · sin tutoriales · sombras off · solo vertical
